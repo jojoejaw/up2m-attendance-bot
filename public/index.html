@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบเช็คชื่อ แฟม up2m</title>
+  
+  <!-- Google Fonts: Kanit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app-layout">
+    
+    <!-- LEFT SIDEBAR (Dark Indigo Fantasy Theme) -->
+    <aside class="left-sidebar">
+      <div class="sidebar-top-content">
+        <div class="brand-container">
+          <div class="brand-logo" id="sidebarGuildLogo" style="background: rgba(255, 255, 255, 0.1); padding: 4px;">
+            <img src="assets/u2m_logo.png" alt="U2M Logo" style="width: 100%; height: 100%; object-fit: contain;">
+          </div>
+          <div class="brand-text">
+            <h2 id="sidebarGuildName">DC Check-In</h2>
+            <span>ระบบเช็คชื่อ แฟม up2m</span>
+          </div>
+        </div>
+
+        <!-- 5 Sidebar Navigation Menu Items matching image -->
+        <nav class="sidebar-menu">
+          <a href="#" class="menu-item active">
+            <i class="fa-solid fa-house"></i>
+            <span>หน้าหลัก</span>
+          </a>
+          <a href="#" class="menu-item">
+            <i class="fa-regular fa-clock"></i>
+            <span>ประวัติการเช็คชื่อ</span>
+          </a>
+          <a href="#" class="menu-item">
+            <i class="fa-solid fa-calendar-days"></i>
+            <span>สรุปผลการเช็คชื่อ</span>
+          </a>
+          <a href="#" class="menu-item">
+            <i class="fa-solid fa-user-gear"></i>
+            <span>จัดการยศตำแหน่ง</span>
+          </a>
+          <a href="#" class="menu-item">
+            <i class="fa-solid fa-gear"></i>
+            <span>ตั้งค่าระบบ</span>
+          </a>
+        </nav>
+      </div>
+
+      <!-- Bottom Manager Profile Card -->
+      <div class="sidebar-user-card">
+        <div class="user-avatar-wrapper">
+          <img src="https://cdn.discordapp.com/embed/avatars/0.png" id="sidebarUserAvatar" alt="User Avatar">
+          <span class="user-status-dot"></span>
+        </div>
+        <div class="user-details">
+          <span class="user-name" id="sidebarUserName">ManagerZ</span>
+          <span class="user-role-badge">ผู้จัดการ</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER MAIN CONTENT AREA -->
+    <main class="main-content">
+      
+      <!-- Main Check-in Table Card -->
+      <div class="main-table-card">
+        
+        <!-- Main Card Header with Sparkles -->
+        <div class="card-header">
+          <div class="header-title-group">
+            <div class="icon-box-purple">
+              <i class="fa-solid fa-calendar-days"></i>
+            </div>
+            <div class="title-text">
+              <h1 id="serverName">ระบบเช็คชื่อ แฟม up2m</h1>
+              <p class="subtitle" id="currentDateSub">
+                <i class="fa-regular fa-calendar"></i> วันที่ 29 กรกฎาคม 2025 <span class="divider">|</span> เวลา 14:30 น.
+              </p>
+            </div>
+          </div>
+          <button class="btn-refresh-pill" id="btnRefresh">
+            <i class="fa-solid fa-rotate-right"></i> รีเฟรชข้อมูล
+          </button>
+        </div>
+
+        <!-- 4-Column Table Header (Gradient Purple Bar) -->
+        <div class="table-column-headers">
+          <div class="col-head col-id">#</div>
+          <div class="col-head col-role">ตำแหน่ง</div>
+          <div class="col-head col-name">รายชื่อสมาชิก</div>
+          <div class="col-head col-status col-center">สถานะการเช็คชื่อ</div>
+        </div>
+
+        <!-- Member Rows Container -->
+        <div class="member-rows-list" id="memberRowsList">
+          <div class="loading-box">
+            <i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสมาชิกจาก Discord...
+          </div>
+        </div>
+
+        <!-- Card Footer Action Bar -->
+        <div class="card-footer-action">
+          <div class="footer-info-text">
+            <i class="fa-solid fa-circle-info"></i> กรุณาเช็คชื่อให้ครบทุกคนก่อนยืนยัน
+          </div>
+          <div class="footer-right-action">
+            <span class="count-text" id="checkedCountText">เช็คแล้ว 0 / 0 คน</span>
+            <button class="btn-confirm-purple" id="btnSubmitAttendance">
+              <i class="fa-solid fa-circle-check"></i> ยืนยันการเช็คชื่อ
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Split Banner (2 Cards matching reference image) -->
+      <div class="bottom-split-banner">
+        
+        <!-- Left Banner Card: Recent Notification -->
+        <div class="banner-card banner-left-card">
+          <div class="banner-card-header">
+            <i class="fa-solid fa-bell bell-icon-purple"></i>
+            <h4>การแจ้งเตือนล่าสุด</h4>
+          </div>
+          <div class="notification-item">
+            <div class="notif-check-icon"><i class="fa-solid fa-check"></i></div>
+            <div class="notif-text">
+              <span class="notif-time" id="notifTime">--:-- น.</span>
+              <span class="notif-desc" id="notifDesc">ยังไม่มีการบันทึกการเช็คชื่อในวันนี้</span>
+            </div>
+            <i class="fa-solid fa-chevron-right notif-arrow"></i>
+          </div>
+        </div>
+
+        <!-- Right Banner Card: Log Channel Link -->
+        <div class="banner-card banner-right-card">
+          <div class="banner-card-header">
+            <i class="fa-regular fa-file-code log-icon-purple"></i>
+            <h4>ช่องทาง Log</h4>
+          </div>
+          <div class="log-channel-row">
+            <span class="log-channel-tag" id="logChannelTag"><i class="fa-solid fa-hashtag"></i> summary-log</span>
+            <button class="btn-log-link" id="btnLogLink"><i class="fa-brands fa-discord"></i> ไปที่ Log Channel</button>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+    <!-- RIGHT SIDEBAR (STATUS & SUMMARY) -->
+    <aside class="right-sidebar">
+      
+      <!-- Status Badge Card (Dark Gradient with Clipboard Illustration) -->
+      <div class="status-banner-card">
+        <div class="status-banner-left">
+          <div class="status-banner-title">สถานะการเช็คชื่อ</div>
+          <h2 id="bannerStatusText">รอยืนยัน</h2>
+          <p class="status-banner-sub">กรุณาเช็คชื่อให้ครบทุกคนก่อนยืนยันการบันทึก</p>
+        </div>
+        <div class="status-banner-illustration">
+          <div class="clipboard-icon-wrapper">
+            <i class="fa-solid fa-clipboard-list"></i>
+            <div class="clipboard-check-badge"><i class="fa-solid fa-check"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Metric Card -->
+      <div class="summary-card">
+        <h3><i class="fa-solid fa-chart-simple text-purple"></i> สรุปข้อมูลวันนี้</h3>
+        <div class="summary-list">
+          <div class="summary-item">
+            <span class="summary-label"><i class="fa-solid fa-circle dot-gray"></i> สมาชิกทั้งหมด</span>
+            <span class="summary-count" id="valTotal">0 คน</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label"><i class="fa-solid fa-circle dot-gray"></i> รอการเช็คชื่อ</span>
+            <span class="summary-count" id="valPending">0 คน</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label"><i class="fa-solid fa-circle dot-green"></i> มา</span>
+            <span class="summary-count" id="valPresent">0 คน</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label"><i class="fa-solid fa-circle dot-yellow"></i> สาย</span>
+            <span class="summary-count" id="valLate">0 คน</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label"><i class="fa-solid fa-circle dot-red"></i> ขาด</span>
+            <span class="summary-count" id="valAbsent">0 คน</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions Card with Lightning Icon -->
+      <div class="quick-actions-card">
+        <h3><i class="fa-solid fa-bolt text-purple"></i> การดำเนินการด่วน</h3>
+        <div class="actions-list">
+          <button class="action-btn" id="btnCheckAllPresent">
+            <span><i class="fa-regular fa-circle-check text-green"></i> เช็คชื่อทั้งหมดเป็น 'มา'</span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="action-btn" id="btnResetAllStatus">
+            <span><i class="fa-solid fa-rotate-left text-purple"></i> รีเซ็ตสถานะทั้งหมด</span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="action-btn" id="btnUpdateMemberList">
+            <span><i class="fa-solid fa-user-group text-blue"></i> อัปเดตรายชื่อสมาชิก</span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bot Status Card -->
+      <div class="bot-status-card">
+        <div class="bot-info-row">
+          <div class="bot-discord-logo"><i class="fa-brands fa-discord"></i></div>
+          <div class="bot-status-text">
+            <strong>DC Check-In Bot</strong>
+            <span class="bot-online-tag"><i class="fa-solid fa-circle"></i> ออนไลน์</span>
+          </div>
+        </div>
+        <button class="btn-bot-link"><i class="fa-brands fa-discord"></i> เชื่อมต่อ Discord แล้ว</button>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Success Modal -->
+  <div class="modal-backdrop" id="successModal">
+    <div class="modal-card">
+      <div class="modal-icon"><i class="fa-solid fa-circle-check"></i></div>
+      <h2>บันทึกการเช็คชื่อสำเร็จ!</h2>
+      <p id="modalMessage">ระบบได้ส่ง DM แจ้งเตือนไปยังสมาชิกทุกคน และบันทึกประวัติลง Log Channel เรียบร้อยแล้ว</p>
+      <button class="btn-primary" id="btnCloseModal">ตกลง</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
