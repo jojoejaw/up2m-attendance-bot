@@ -29,69 +29,265 @@ module.exports = {
 
       // 1.5 Handle Modal Submissions
       if (interaction.isModalSubmit()) {
-        if (interaction.customId === 'modal_create_announcement') {
-          await interaction.deferReply({ ephemeral: false });
+        const announcementStore = require('../utils/announcementStore');
 
+        // Modal Step 1 Submit: Title & Message
+        if (interaction.customId === 'modal_create_announcement') {
           const title = interaction.fields.getTextInputValue('ann_title');
           const message = interaction.fields.getTextInputValue('ann_message');
-          const mentionInput = (interaction.fields.getTextInputValue('ann_mention') || 'none').toLowerCase().trim();
 
-          const announcementStore = require('../utils/announcementStore');
-          const announcementId = `ann_${Date.now()}`;
-          announcementStore.createAnnouncement(announcementId, {
+          // Save draft for user
+          announcementStore.setDraft(interaction.user.id, {
             title,
             message,
-            authorId: interaction.user.id,
-            authorName: interaction.member.displayName || interaction.user.username,
-            channelId: interaction.channelId
+            imageUrl: null
           });
 
-          const path = require('path');
-          const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
-          const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
-
-          const embed = new EmbedBuilder()
-            .setTitle(`📢 ${title}`)
+          // Build Step 2 Ephemeral Controls (Mention Selection + Optional Image Attachment)
+          const embedStep2 = new EmbedBuilder()
+            .setTitle('📝 ขั้นตอนที่ 2/2: เลือกการแท็กแจ้งเตือน & แนบรูปภาพ')
             .setDescription(
-              `### 📌 รายละเอียดข่าวสาร\n` +
-              `> ${message.replace(/\n/g, '\n> ')}\n\n` +
-              `──────────────────────────────\n` +
-              `> 👔 **ผู้ประกาศ**: \` ${interaction.member.displayName || interaction.user.username} \`\n` +
-              `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-              `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
+              `✅ **บันทึกรายละเอียดประกาศเรียบร้อยแล้ว!**\n\n` +
+              `> 📌 **หัวข้อ**: **${title}**\n` +
+              `> 🖼️ **สถานะรูปภาพ**: \` ยังไม่ได้แนบรูปภาพ \`\n\n` +
+              `👇 **กรุณาเลือกปุ่มการแท็กแจ้งเตือนด้านล่างเพื่อโพสต์ประกาศลงช่องทันที:**`
             )
             .setColor(0x8b5cf6)
-            .setThumbnail('attachment://u2m_logo.png')
-            .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
-            .setTimestamp();
+            .setFooter({ text: 'ระบบประกาศข่าวสาร แฟม up2m' });
 
-          const btnAck = new ButtonBuilder()
-            .setCustomId(`ack_${announcementId}`)
-            .setLabel('🔔 กดรับทราบข่าวสาร')
-            .setStyle(ButtonStyle.Success);
+          const btnEveryone = new ButtonBuilder()
+            .setCustomId('btn_pub_everyone')
+            .setLabel('📢 แท็ก @everyone')
+            .setStyle(ButtonStyle.Danger);
 
-          const btnList = new ButtonBuilder()
-            .setCustomId(`list_ack_${announcementId}`)
-            .setLabel('📋 ดูรายชื่อผู้รับทราบ')
+          const btnHere = new ButtonBuilder()
+            .setCustomId('btn_pub_here')
+            .setLabel('🔔 แท็ก @here')
+            .setStyle(ButtonStyle.Primary);
+
+          const btnNone = new ButtonBuilder()
+            .setCustomId('btn_pub_none')
+            .setLabel('🔕 ไม่แท็ก')
             .setStyle(ButtonStyle.Secondary);
 
-          const row = new ActionRowBuilder().addComponents(btnAck, btnList);
+          const btnAddImage = new ButtonBuilder()
+            .setCustomId('btn_open_image_modal')
+            .setLabel('🖼️ แนบรูปภาพประกอบ')
+            .setStyle(ButtonStyle.Success);
 
-          let contentPrefix = '';
-          if (mentionInput === 'everyone') contentPrefix = '@everyone ';
-          else if (mentionInput === 'here') contentPrefix = '@here ';
+          const rowTags = new ActionRowBuilder().addComponents(btnEveryone, btnHere, btnNone);
+          const rowImage = new ActionRowBuilder().addComponents(btnAddImage);
 
-          return await interaction.editReply({
-            content: contentPrefix.trim() ? contentPrefix.trim() : null,
-            embeds: [embed],
-            components: [row],
-            files: [logoAttachment]
+          return await interaction.reply({
+            embeds: [embedStep2],
+            components: [rowTags, rowImage],
+            ephemeral: true
+          });
+        }
+
+        // Modal Image Submit: Image URL
+        if (interaction.customId === 'modal_add_ann_image') {
+          const imageUrl = interaction.fields.getTextInputValue('ann_image_url');
+          const draft = announcementStore.getDraft(interaction.user.id);
+
+          if (draft) {
+            draft.imageUrl = imageUrl.trim() ? imageUrl.trim() : null;
+            announcementStore.setDraft(interaction.user.id, draft);
+          }
+
+          const title = draft ? draft.title : 'ประกาศ';
+          const hasImage = draft && draft.imageUrl;
+
+          const embedStep2 = new EmbedBuilder()
+            .setTitle('📝 ขั้นตอนที่ 2/2: เลือกการแท็กแจ้งเตือน & แนบรูปภาพ')
+            .setDescription(
+              `✅ **บันทึกรายละเอียดประกาศเรียบร้อยแล้ว!**\n\n` +
+              `> 📌 **หัวข้อ**: **${title}**\n` +
+              `> 🖼️ **สถานะรูปภาพ**: \` ${hasImage ? '✅ แนบรูปภาพเรียบร้อยแล้ว' : 'ยังไม่ได้แนบรูปภาพ'} \`\n\n` +
+              `👇 **กรุณาเลือกปุ่มการแท็กแจ้งเตือนด้านล่างเพื่อโพสต์ประกาศลงช่องทันที:**`
+            )
+            .setColor(0x8b5cf6)
+            .setFooter({ text: 'ระบบประกาศข่าวสาร แฟม up2m' });
+
+          const btnEveryone = new ButtonBuilder()
+            .setCustomId('btn_pub_everyone')
+            .setLabel('📢 แท็ก @everyone')
+            .setStyle(ButtonStyle.Danger);
+
+          const btnHere = new ButtonBuilder()
+            .setCustomId('btn_pub_here')
+            .setLabel('🔔 แท็ก @here')
+            .setStyle(ButtonStyle.Primary);
+
+          const btnNone = new ButtonBuilder()
+            .setCustomId('btn_pub_none')
+            .setLabel('🔕 ไม่แท็ก')
+            .setStyle(ButtonStyle.Secondary);
+
+          const btnAddImage = new ButtonBuilder()
+            .setCustomId('btn_open_image_modal')
+            .setLabel(hasImage ? '🖼️ เปลี่ยนรูปภาพแนบ' : '🖼️ แนบรูปภาพประกอบ')
+            .setStyle(ButtonStyle.Success);
+
+          const rowTags = new ActionRowBuilder().addComponents(btnEveryone, btnHere, btnNone);
+          const rowImage = new ActionRowBuilder().addComponents(btnAddImage);
+
+          return await interaction.reply({
+            content: '✅ **บันทึกรูปภาพเรียบร้อยแล้ว!**',
+            embeds: [embedStep2],
+            components: [rowTags, rowImage],
+            ephemeral: true
           });
         }
       }
 
       // 2. Handle Component Interactions (Buttons / Select Menus)
       if (!interaction.isMessageComponent()) return;
+
+      // 📢 Step 1 Button Click: "คลิกเพื่อสร้างประกาศใหม่"
+      if (interaction.isButton() && interaction.customId === 'btn_start_announcement') {
+        const { LEADER_ROLE_ID, MANAGER_ROLE_ID } = config.roles;
+        const member = interaction.member;
+
+        const isLeader = LEADER_ROLE_ID && !LEADER_ROLE_ID.includes('YOUR_') && member.roles.cache.has(LEADER_ROLE_ID);
+        const isManager = MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_') && member.roles.cache.has(MANAGER_ROLE_ID);
+        const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
+
+        if (!isLeader && !isManager && !isAdmin) {
+          return await interaction.reply({
+            content: '❌ **คุณไม่มีสิทธิ์สร้างประกาศ!** เฉพาะยศ **หัวหน้า** หรือ **ผู้จัดการ** เท่านั้น',
+            ephemeral: true
+          });
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId('modal_create_announcement')
+          .setTitle('📢 สร้างประกาศข่าวสาร แฟม U2M');
+
+        const titleInput = new TextInputBuilder()
+          .setCustomId('ann_title')
+          .setLabel('หัวข้อประกาศ')
+          .setPlaceholder('เช่น นัดประชุมประจำสัปดาห์ / แจ้งกิจกรรมแฟม')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
+
+        const messageInput = new TextInputBuilder()
+          .setCustomId('ann_message')
+          .setLabel('รายละเอียดข่าวสาร (พิมพ์ได้หลายบรรทัด)')
+          .setPlaceholder('พิมพ์เนื้อหาประกาศรายละเอียด วันเวลา และข้อตกลงที่นี่...')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true);
+
+        const row1 = new ActionRowBuilder().addComponents(titleInput);
+        const row2 = new ActionRowBuilder().addComponents(messageInput);
+        modal.addComponents(row1, row2);
+
+        return await interaction.showModal(modal);
+      }
+
+      // 🖼️ Button Click: Open Image URL Modal
+      if (interaction.isButton() && interaction.customId === 'btn_open_image_modal') {
+        const modal = new ModalBuilder()
+          .setCustomId('modal_add_ann_image')
+          .setTitle('🖼️ แนบลิงก์รูปภาพประกอบประกาศ');
+
+        const imageInput = new TextInputBuilder()
+          .setCustomId('ann_image_url')
+          .setLabel('วางลิงก์รูปภาพ (URL: http:// หรือ https://)')
+          .setPlaceholder('เช่น https://i.imgur.com/example.png หรือ ลิงก์รูปจากดิสคอร์ด')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
+
+        const row = new ActionRowBuilder().addComponents(imageInput);
+        modal.addComponents(row);
+
+        return await interaction.showModal(modal);
+      }
+
+      // 🚀 Publish Buttons: btn_pub_everyone, btn_pub_here, btn_pub_none
+      if (interaction.isButton() && (
+        interaction.customId === 'btn_pub_everyone' ||
+        interaction.customId === 'btn_pub_here' ||
+        interaction.customId === 'btn_pub_none'
+      )) {
+        const announcementStore = require('../utils/announcementStore');
+        const draft = announcementStore.getDraft(interaction.user.id);
+
+        if (!draft) {
+          return await interaction.reply({
+            content: '⚠️ **ไม่พบร่างประกาศของคุณ** กรุณากดปุ่มสร้างประกาศใหม่อีกครั้งครับ',
+            ephemeral: true
+          });
+        }
+
+        const { title, message, imageUrl } = draft;
+        const announcementId = `ann_${Date.now()}`;
+        announcementStore.createAnnouncement(announcementId, {
+          title,
+          message,
+          imageUrl,
+          authorId: interaction.user.id,
+          authorName: interaction.member.displayName || interaction.user.username,
+          channelId: interaction.channelId
+        });
+
+        // Prepare U2M Logo Attachment
+        const path = require('path');
+        const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
+        const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
+
+        // Build Final U2M Announcement Embed Card
+        const embed = new EmbedBuilder()
+          .setTitle(`📢 ${title}`)
+          .setDescription(
+            `### 📌 รายละเอียดข่าวสาร\n` +
+            `> ${message.replace(/\n/g, '\n> ')}\n\n` +
+            `──────────────────────────────\n` +
+            `> 👔 **ผู้ประกาศ**: \` ${interaction.member.displayName || interaction.user.username} \`\n` +
+            `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+            `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
+          )
+          .setColor(0x8b5cf6)
+          .setThumbnail('attachment://u2m_logo.png')
+          .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
+          .setTimestamp();
+
+        if (imageUrl) {
+          embed.setImage(imageUrl);
+        }
+
+        const btnAck = new ButtonBuilder()
+          .setCustomId(`ack_${announcementId}`)
+          .setLabel('🔔 กดรับทราบข่าวสาร')
+          .setStyle(ButtonStyle.Success);
+
+        const btnList = new ButtonBuilder()
+          .setCustomId(`list_ack_${announcementId}`)
+          .setLabel('📋 ดูรายชื่อผู้รับทราบ')
+          .setStyle(ButtonStyle.Secondary);
+
+        const row = new ActionRowBuilder().addComponents(btnAck, btnList);
+
+        let contentPrefix = '';
+        if (interaction.customId === 'btn_pub_everyone') contentPrefix = '@everyone ';
+        else if (interaction.customId === 'btn_pub_here') contentPrefix = '@here ';
+
+        // Post announcement to channel
+        await interaction.channel.send({
+          content: contentPrefix.trim() ? contentPrefix.trim() : null,
+          embeds: [embed],
+          components: [row],
+          files: [logoAttachment]
+        });
+
+        // Clear user draft
+        announcementStore.clearDraft(interaction.user.id);
+
+        return await interaction.reply({
+          content: '🎉 **โพสต์ประกาศข่าวสารลงช่องเรียบร้อยแล้วครับ!**',
+          ephemeral: true
+        });
+      }
 
       // 📢 Handle Announcement Acknowledgment Button (ack_ann_...)
       if (interaction.isButton() && interaction.customId.startsWith('ack_ann_')) {

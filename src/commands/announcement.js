@@ -1,74 +1,76 @@
 const { 
   SlashCommandBuilder, 
-  ModalBuilder, 
-  TextInputBuilder, 
-  TextInputStyle, 
-  ActionRowBuilder,
+  EmbedBuilder, 
+  ActionRowBuilder, 
+  ButtonBuilder, 
+  ButtonStyle,
+  AttachmentBuilder,
   PermissionFlagsBits
 } = require('discord.js');
+const path = require('path');
 const config = require('../config.json');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('announcement')
-    .setDescription('เปิดหน้าต่างป๊อปอัปสร้างประกาศข่าวสาร แฟม U2M (เฉพาะหัวหน้า/ผู้จัดการ)'),
+    .setDescription('สร้างปุ่มแผงควบคุมการสร้างประกาศข่าวสาร แฟม U2M ในห้องประกาศ (เฉพาะหัวหน้า/ผู้จัดการ)'),
 
   async execute(interaction) {
     try {
       const { LEADER_ROLE_ID, MANAGER_ROLE_ID } = config.roles;
       const member = interaction.member;
 
-      // 🛡️ Strict Permission Check: Leader or Manager role only
+      // 🛡️ Permission check
       const isLeader = LEADER_ROLE_ID && !LEADER_ROLE_ID.includes('YOUR_') && member.roles.cache.has(LEADER_ROLE_ID);
       const isManager = MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_') && member.roles.cache.has(MANAGER_ROLE_ID);
       const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
 
       if (!isLeader && !isManager && !isAdmin) {
         return await interaction.reply({
-          content: '❌ **คุณไม่มีสิทธิ์สร้างประกาศ!** เฉพาะยศ **หัวหน้า** หรือ **ผู้จัดการ** เท่านั้นที่มีสิทธิ์ใช้คำสั่งนี้',
+          content: '❌ **คุณไม่มีสิทธิ์ใช้งานคำสั่งนี้!** เฉพาะยศ **หัวหน้า** หรือ **ผู้จัดการ** เท่านั้น',
           ephemeral: true
         });
       }
 
-      // 📌 Create Native Discord Modal Popup Window
-      const modal = new ModalBuilder()
-        .setCustomId('modal_create_announcement')
-        .setTitle('📢 สร้างประกาศข่าวสาร แฟม U2M');
+      await interaction.deferReply({ ephemeral: false });
 
-      const titleInput = new TextInputBuilder()
-        .setCustomId('ann_title')
-        .setLabel('หัวข้อประกาศ')
-        .setPlaceholder('เช่น นัดประชุมประจำสัปดาห์ / แจ้งกิจกรรมแฟม')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true);
+      // Prepare U2M Logo Attachment
+      const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
+      const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
 
-      const messageInput = new TextInputBuilder()
-        .setCustomId('ann_message')
-        .setLabel('รายละเอียดข่าวสาร (พิมพ์ได้หลายบรรทัด)')
-        .setPlaceholder('พิมพ์เนื้อหาประกาศรายละเอียด วันเวลา และข้อตกลงที่นี่...')
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true);
+      // Build Control Panel Embed
+      const embed = new EmbedBuilder()
+        .setTitle('📢 ระบบสร้างประกาศข่าวสาร แฟม UP TO ME')
+        .setDescription(
+          `👋 **ยินดีต้อนรับสู่ระบบส่งประกาศข่าวสารประจำแฟม U2M**\n\n` +
+          `> 👔 **สำหรับผู้ที่มีสิทธิ์**: \` หัวหน้า / ผู้จัดการ \`\n` +
+          `> 📝 **การใช้งาน**: กดปุ่มด้านล่างเพื่อเปิดหน้าต่างกรอกหัวข้อ และรายละเอียดประกาศ\n\n` +
+          `✨ **กดปุ่มด้านล่างเพื่อเริ่มสร้างประกาศใหม่ได้ทันที!**`
+        )
+        .setColor(0x8b5cf6)
+        .setThumbnail('attachment://u2m_logo.png')
+        .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
+        .setTimestamp();
 
-      const mentionInput = new TextInputBuilder()
-        .setCustomId('ann_mention')
-        .setLabel('แท็กแจ้งเตือน (พิมพ์: everyone / here / none)')
-        .setPlaceholder('พิมพ์ everyone หรือ here หรือ none (ค่าเริ่มต้นคือ none)')
-        .setStyle(TextInputStyle.Short)
-        .setValue('none')
-        .setRequired(false);
+      const btnCreate = new ButtonBuilder()
+        .setCustomId('btn_start_announcement')
+        .setLabel('📢 คลิกเพื่อสร้างประกาศใหม่')
+        .setStyle(ButtonStyle.Primary);
 
-      const row1 = new ActionRowBuilder().addComponents(titleInput);
-      const row2 = new ActionRowBuilder().addComponents(messageInput);
-      const row3 = new ActionRowBuilder().addComponents(mentionInput);
+      const row = new ActionRowBuilder().addComponents(btnCreate);
 
-      modal.addComponents(row1, row2, row3);
-
-      await interaction.showModal(modal);
+      return await interaction.editReply({
+        embeds: [embed],
+        components: [row],
+        files: [logoAttachment]
+      });
 
     } catch (error) {
-      console.error('[Announcement Command Modal Error]', error);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: '❌ **เกิดข้อผิดพลาดในการเปิดหน้าต่างประกาศ**: ' + error.message, ephemeral: true }).catch(() => {});
+      console.error('[Announcement Panel Error]', error);
+      if (interaction.deferred) {
+        await interaction.editReply({ content: '❌ **เกิดข้อผิดพลาดในการสร้างแผงประกาศ**: ' + error.message }).catch(() => {});
+      } else {
+        await interaction.reply({ content: '❌ **เกิดข้อผิดพลาดในการสร้างแผงประกาศ**: ' + error.message, ephemeral: true }).catch(() => {});
       }
     }
   }

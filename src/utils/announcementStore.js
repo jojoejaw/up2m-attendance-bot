@@ -1,9 +1,24 @@
 /**
- * In-Memory Store for U2M Family Announcements
+ * In-Memory Store for U2M Family Announcements & User Drafts
  */
 class AnnouncementStore {
   constructor() {
-    this.announcements = new Map(); // id -> { id, title, message, authorId, authorName, channelId, createdAt, acknowledgedUsers: Set }
+    this.announcements = new Map(); // id -> { id, title, message, imageUrl, authorId, authorName, channelId, createdAt, acknowledgedUsers: Set }
+    this.drafts = new Map(); // userId -> { title, message, imageUrl }
+  }
+
+  setDraft(userId, draftData) {
+    const existing = this.drafts.get(userId) || {};
+    this.drafts.set(userId, { ...existing, ...draftData });
+    return this.drafts.get(userId);
+  }
+
+  getDraft(userId) {
+    return this.drafts.get(userId);
+  }
+
+  clearDraft(userId) {
+    this.drafts.delete(userId);
   }
 
   createAnnouncement(id, data) {
@@ -11,6 +26,7 @@ class AnnouncementStore {
       id,
       title: data.title,
       message: data.message,
+      imageUrl: data.imageUrl || null,
       authorId: data.authorId,
       authorName: data.authorName,
       channelId: data.channelId,
