@@ -80,18 +80,18 @@ module.exports = {
       const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
       const filesToSend = [logoAttachment];
 
-      // Build Premium Announcement Embed Card
+      // Build Premium, High-Contrast U2M Announcement Embed Card
       const embed = new EmbedBuilder()
-        .setTitle(`📢 ${title}`)
+        .setTitle(`📢  ${title}`)
         .setDescription(
-          `👋 **ประกาศสำคัญจาก แฟม UP TO ME (U2M)**\n\n` +
-          `${message}\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `> 👔 **ผู้ประกาศ**: **${interaction.member.displayName || interaction.user.username}**\n` +
+          `### 📌 รายละเอียดข่าวสาร\n` +
+          `> ${message.replace(/\n/g, '\n> ')}\n\n` +
+          `──────────────────────────────\n` +
+          `> 👔 **ผู้ประกาศ**: \` ${interaction.member.displayName || interaction.user.username} \`\n` +
           `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
           `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
         )
-        .setColor(0x7c3aed)
+        .setColor(0x8b5cf6)
         .setThumbnail('attachment://u2m_logo.png')
         .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
         .setTimestamp();
