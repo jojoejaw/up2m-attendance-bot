@@ -21,10 +21,103 @@ module.exports = {
         if (interaction.commandName === 'attendance-panel') {
           return await attendancePanel.execute(interaction);
         }
+        if (interaction.commandName === 'announcement') {
+          const announcementCommand = require('../commands/announcement');
+          return await announcementCommand.execute(interaction);
+        }
       }
 
       // 2. Handle Component Interactions (Buttons / Select Menus)
       if (!interaction.isMessageComponent()) return;
+
+      // 📢 Handle Announcement Acknowledgment Button (ack_ann_...)
+      if (interaction.isButton() && interaction.customId.startsWith('ack_ann_')) {
+        const announcementStore = require('../utils/announcementStore');
+        const announcementId = interaction.customId.replace('ack_', '');
+        const result = announcementStore.acknowledge(announcementId, interaction.user.id);
+        const ann = announcementStore.getAnnouncement(announcementId);
+
+        if (!result.success && result.reason === 'ALREADY_ACKNOWLEDGED') {
+          return await interaction.reply({
+            content: '⚠️ **คุณได้กดรับทราบประกาศนี้ไปเรียบร้อยแล้วครับ!**',
+            ephemeral: true
+          });
+        }
+
+        // Update the main embed with new acknowledged count
+        const oldEmbed = interaction.message.embeds[0];
+        if (oldEmbed && ann) {
+          const updatedEmbed = EmbedBuilder.from(oldEmbed)
+            .setDescription(
+              oldEmbed.description.replace(
+                /> 👥 \*\*ยอดผู้รับทราบ\*\*: ` \d+ คน `/,
+                `> 👥 **ยอดผู้รับทราบ**: \` ${ann.acknowledgedUsers.size} คน \``
+              )
+            );
+          await interaction.message.edit({ embeds: [updatedEmbed] }).catch(() => {});
+        }
+
+        return await interaction.reply({
+          content: `✅ **คุณ ${interaction.user} ได้กดรับทราบประกาศเรื่อง "${ann ? ann.title : 'ประกาศ'}" เรียบร้อยแล้ว!**`,
+          ephemeral: true
+        });
+      }
+
+      // 📋 Handle View Acknowledged List Button (list_ack_ann_...)
+      if (interaction.isButton() && interaction.customId.startsWith('list_ack_ann_')) {
+        const announcementStore = require('../utils/announcementStore');
+        const announcementId = interaction.customId.replace('list_ack_', '');
+        const ann = announcementStore.getAnnouncement(announcementId);
+
+        if (!ann) {
+          return await interaction.reply({
+            content: '⚠️ **ไม่พบข้อมูลประกาศนี้ในระบบ**',
+            ephemeral: true
+          });
+        }
+
+        let allMembers = interaction.guild.members.cache;
+        const { LEADER_ROLE_ID, MANAGER_ROLE_ID, MEMBER_ROLE_ID } = config.roles;
+        const trackedRoleIds = [LEADER_ROLE_ID, MANAGER_ROLE_ID, MEMBER_ROLE_ID].filter(
+          id => id && !id.includes('YOUR_')
+        );
+
+        const ackList = [];
+        const pendingList = [];
+
+        allMembers.forEach(m => {
+          if (m.user.bot) return;
+          const hasTrackedRole = trackedRoleIds.length > 0
+            ? m.roles.cache.some(r => trackedRoleIds.includes(r.id))
+            : true;
+
+          if (hasTrackedRole) {
+            if (ann.acknowledgedUsers.has(m.id)) {
+              ackList.push(`• 🟢 ${m.displayName} (@${m.user.username})`);
+            } else {
+              pendingList.push(`• 🔴 ${m.displayName} (@${m.user.username})`);
+            }
+          }
+        });
+
+        const ackText = ackList.length > 0 ? ackList.join('\n') : '• ยังไม่มีผู้กดรับทราบ';
+        const pendingText = pendingList.length > 0 ? pendingList.join('\n') : '• สมาชิกทุกคนกดรับทราบครบแล้ว 🎉';
+
+        const listEmbed = new EmbedBuilder()
+          .setTitle(`📋 รายชื่อผู้รับทราบประกาศ: ${ann.title}`)
+          .setDescription(
+            `📊 **สรุปยอดผู้รับทราบ**: \` ${ann.acknowledgedUsers.size} / ${ackList.length + pendingList.length} คน \`\n\n` +
+            `🟢 **กดรับทราบแล้ว (${ackList.length} คน)**:\n${ackText}\n\n` +
+            `🔴 **ยังไม่ได้กดรับทราบ (${pendingList.length} คน)**:\n${pendingText}`
+          )
+          .setColor(0x7c3aed)
+          .setTimestamp();
+
+        return await interaction.reply({
+          embeds: [listEmbed],
+          ephemeral: true
+        });
+      }
 
       // 🌐 Handle Per-User Personal Dashboard Link Button (Sends private link for the exact clicking user)
       if (interaction.isButton() && interaction.customId === 'btn_open_dashboard') {

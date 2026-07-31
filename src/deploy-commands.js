@@ -1,9 +1,11 @@
 require('dotenv').config();
 const { REST, Routes } = require('discord.js');
 const attendancePanel = require('./commands/attendancePanel');
+const announcement = require('./commands/announcement');
 
 const commands = [
-  attendancePanel.data.toJSON()
+  attendancePanel.data.toJSON(),
+  announcement.data.toJSON()
 ];
 
 const token = process.env.DISCORD_TOKEN;
