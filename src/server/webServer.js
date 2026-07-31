@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const fs = require('fs');
+const { EmbedBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const attendanceStore = require('../utils/attendanceStore');
 const { sendSafeDM } = require('../utils/dmSender');
 const { sendAttendanceSummaryLog } = require('../utils/logger');
@@ -312,6 +313,149 @@ function startWebServer(client) {
       });
     } catch (error) {
       console.error('[Web API Submit Error]', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // API Endpoint: Submit Announcement from Web Dashboard
+  app.post('/api/announcements/submit', async (req, res) => {
+    try {
+      const { guildId, userId, title, message, imageUrl, mentions } = req.body;
+
+      if (!title || !message) {
+        return res.status(400).json({ success: false, error: 'กรุณากรอกหัวข้อและรายละเอียดข่าวสาร' });
+      }
+
+      const guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();
+      if (!guild) {
+        return res.status(404).json({ success: false, error: 'Guild not found' });
+      }
+
+      const rolesConfig = config.roles;
+
+      // Check user permissions
+      let isManager = false;
+      let authorDisplayName = 'ผู้จัดการ';
+
+      if (userId) {
+        let currentMember = guild.members.cache.get(userId);
+        if (!currentMember) {
+          currentMember = await guild.members.fetch(userId).catch(() => null);
+        }
+        if (currentMember) {
+          authorDisplayName = currentMember.displayName || currentMember.user.username;
+          const managerRoleId = rolesConfig.MANAGER_ROLE_ID;
+          const leaderRoleId = rolesConfig.LEADER_ROLE_ID;
+          const hasManagerRole = managerRoleId && !managerRoleId.includes('YOUR_') && currentMember.roles.cache.has(managerRoleId);
+          const hasLeaderRole = leaderRoleId && !leaderRoleId.includes('YOUR_') && currentMember.roles.cache.has(leaderRoleId);
+          isManager = Boolean(hasManagerRole || hasLeaderRole || currentMember.permissions.has('Administrator'));
+        }
+      }
+
+      if (!isManager) {
+        return res.status(403).json({ success: false, error: 'คุณไม่มีสิทธิ์ส่งประกาศข่าวสาร (เฉพาะหัวหน้า/ผู้จัดการเท่านั้น)' });
+      }
+
+      // Identify channel to post announcement (Target Channel ID: 1532754442540159027)
+      let targetChannel = null;
+      const annChannelId = config.channels ? config.channels.ANNOUNCEMENT_CHANNEL_ID : null;
+      if (annChannelId && !annChannelId.includes('YOUR_')) {
+        targetChannel = guild.channels.cache.get(annChannelId);
+      }
+      if (!targetChannel) {
+        const commandChannelId = config.channels ? config.channels.BOT_COMMAND_CHANNEL_ID : null;
+        if (commandChannelId && !commandChannelId.includes('YOUR_')) {
+          targetChannel = guild.channels.cache.get(commandChannelId);
+        }
+      }
+      if (!targetChannel) {
+        targetChannel = guild.channels.cache.find(c => c.isTextBased() && c.permissionsFor(guild.members.me).has('SendMessages'));
+      }
+
+      if (!targetChannel) {
+        return res.status(500).json({ success: false, error: 'ไม่พบช่องสำหรับส่งประกาศใน Discord' });
+      }
+
+      // Compile Mention string
+      const mentionParts = [];
+      if (Array.isArray(mentions)) {
+        mentions.forEach(m => {
+          if (m === 'everyone') mentionParts.push('@everyone');
+          else if (m === 'here') mentionParts.push('@here');
+          else if (m === 'manager' && rolesConfig.MANAGER_ROLE_ID && !rolesConfig.MANAGER_ROLE_ID.includes('YOUR_')) mentionParts.push(`<@&${rolesConfig.MANAGER_ROLE_ID}>`);
+          else if (m === 'leader' && rolesConfig.LEADER_ROLE_ID && !rolesConfig.LEADER_ROLE_ID.includes('YOUR_')) mentionParts.push(`<@&${rolesConfig.LEADER_ROLE_ID}>`);
+          else if (m === 'member' && rolesConfig.MEMBER_ROLE_ID && !rolesConfig.MEMBER_ROLE_ID.includes('YOUR_')) mentionParts.push(`<@&${rolesConfig.MEMBER_ROLE_ID}>`);
+        });
+      }
+
+      // Create Announcement Record in Store
+      const announcementStore = require('../utils/announcementStore');
+      const announcementId = `ann_${Date.now()}`;
+      announcementStore.createAnnouncement(announcementId, {
+        title,
+        message,
+        imageUrl,
+        authorId: userId,
+        authorName: authorDisplayName,
+        channelId: targetChannel.id
+      });
+
+      // Prepare U2M Logo Attachment
+      const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
+      const filesToSend = [];
+
+      const embed = new EmbedBuilder()
+        .setTitle(`📢 ${title}`)
+        .setDescription(
+          `### 📌 รายละเอียดข่าวสาร\n` +
+          `> ${message.replace(/\n/g, '\n> ')}\n\n` +
+          `──────────────────────────────\n` +
+          `> 👔 **ผู้ประกาศ**: \` ${authorDisplayName} \`\n` +
+          `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+          `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
+        )
+        .setColor(0x8b5cf6)
+        .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
+        .setTimestamp();
+
+      if (fs.existsSync(logoPath)) {
+        const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
+        filesToSend.push(logoAttachment);
+        embed.setThumbnail('attachment://u2m_logo.png');
+      }
+
+      if (imageUrl && imageUrl.trim()) {
+        embed.setImage(imageUrl.trim());
+      }
+
+      const btnAck = new ButtonBuilder()
+        .setCustomId(`ack_${announcementId}`)
+        .setLabel('🔔 กดรับทราบข่าวสาร')
+        .setStyle(ButtonStyle.Success);
+
+      const btnList = new ButtonBuilder()
+        .setCustomId(`list_ack_${announcementId}`)
+        .setLabel('📋 ดูรายชื่อผู้รับทราบ')
+        .setStyle(ButtonStyle.Secondary);
+
+      const row = new ActionRowBuilder().addComponents(btnAck, btnList);
+
+      const contentPrefix = mentionParts.length > 0 ? mentionParts.join(' ') : null;
+
+      await targetChannel.send({
+        content: contentPrefix,
+        embeds: [embed],
+        components: [row],
+        files: filesToSend
+      });
+
+      res.json({
+        success: true,
+        message: 'ส่งประกาศข่าวสารลง Discord เรียบร้อยแล้ว!'
+      });
+
+    } catch (error) {
+      console.error('[Web Announcement Submit Error]', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });

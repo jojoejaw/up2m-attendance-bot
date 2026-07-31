@@ -4,11 +4,11 @@
 class AnnouncementStore {
   constructor() {
     this.announcements = new Map(); // id -> { id, title, message, imageUrl, authorId, authorName, channelId, createdAt, acknowledgedUsers: Set }
-    this.drafts = new Map(); // userId -> { title, message, imageUrl }
+    this.drafts = new Map(); // userId -> { title, message, imageUrl, mentions: [] }
   }
 
   setDraft(userId, draftData) {
-    const existing = this.drafts.get(userId) || {};
+    const existing = this.drafts.get(userId) || { mentions: [] };
     this.drafts.set(userId, { ...existing, ...draftData });
     return this.drafts.get(userId);
   }

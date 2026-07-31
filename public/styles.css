@@ -937,3 +937,65 @@ body {
   font-weight: 600;
   box-shadow: 0 4px 15px rgba(108, 92, 231, 0.35);
 }
+
+/* ==========================================================================
+   WEB ANNOUNCEMENT FORM STYLES
+   ========================================================================== */
+.web-input-field {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.web-input-field:focus {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.15);
+  background: #ffffff;
+}
+
+.mention-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.65rem;
+}
+
+.mention-check-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.mention-check-card:hover {
+  border-color: var(--purple-primary);
+  background: var(--purple-light);
+}
+.mention-check-card input[type="checkbox"] {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  accent-color: var(--purple-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.check-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.check-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}

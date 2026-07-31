@@ -126,6 +126,7 @@ async function fetchMembersData() {
     renderMemberRows();
     updateMetrics();
     applyPermissionState();
+    applyAnnouncementPermState();
 
     // Update Bottom Banner Cards (Recent Notification & Log Channel)
     const notifTime = document.getElementById('notifTime');
@@ -459,6 +460,119 @@ if (btnCloseModal) {
 
 if (btnRefresh) {
   btnRefresh.addEventListener('click', fetchMembersData);
+}
+
+// Nav Tab Switching Logic
+const navAttendance = document.getElementById('navAttendance');
+const navAnnouncement = document.getElementById('navAnnouncement');
+const attendanceMainViewCard = document.getElementById('attendanceMainViewCard');
+const announcementViewCard = document.getElementById('announcementViewCard');
+const btnBackToAttendance = document.getElementById('btnBackToAttendance');
+
+function switchToTab(tabName) {
+  if (tabName === 'announcement') {
+    if (attendanceMainViewCard) attendanceMainViewCard.style.display = 'none';
+    if (announcementViewCard) announcementViewCard.style.display = 'flex';
+    if (navAttendance) navAttendance.classList.remove('active');
+    if (navAnnouncement) navAnnouncement.classList.add('active');
+  } else {
+    if (attendanceMainViewCard) attendanceMainViewCard.style.display = 'flex';
+    if (announcementViewCard) announcementViewCard.style.display = 'none';
+    if (navAttendance) navAttendance.classList.add('active');
+    if (navAnnouncement) navAnnouncement.classList.remove('active');
+  }
+}
+
+if (navAttendance) navAttendance.addEventListener('click', (e) => { e.preventDefault(); switchToTab('attendance'); });
+if (navAnnouncement) navAnnouncement.addEventListener('click', (e) => { e.preventDefault(); switchToTab('announcement'); });
+if (btnBackToAttendance) btnBackToAttendance.addEventListener('click', () => switchToTab('attendance'));
+
+// Web Announcement Submit Handler
+const btnSubmitWebAnnouncement = document.getElementById('btnSubmitWebAnnouncement');
+const webAnnTitle = document.getElementById('webAnnTitle');
+const webAnnMessage = document.getElementById('webAnnMessage');
+const webAnnImageUrl = document.getElementById('webAnnImageUrl');
+const announcementPermNotice = document.getElementById('announcementPermNotice');
+const announcementFormFields = document.getElementById('announcementFormFields');
+
+// Apply Announcement Permission State
+function applyAnnouncementPermState() {
+  if (!canEdit) {
+    if (announcementPermNotice) announcementPermNotice.style.display = 'block';
+    if (announcementFormFields) announcementFormFields.style.opacity = '0.5';
+    if (btnSubmitWebAnnouncement) {
+      btnSubmitWebAnnouncement.disabled = true;
+      btnSubmitWebAnnouncement.style.opacity = '0.6';
+      btnSubmitWebAnnouncement.style.cursor = 'not-allowed';
+    }
+  } else {
+    if (announcementPermNotice) announcementPermNotice.style.display = 'none';
+    if (announcementFormFields) announcementFormFields.style.opacity = '1';
+    if (btnSubmitWebAnnouncement) {
+      btnSubmitWebAnnouncement.disabled = false;
+      btnSubmitWebAnnouncement.style.opacity = '1';
+      btnSubmitWebAnnouncement.style.cursor = 'pointer';
+    }
+  }
+}
+
+if (btnSubmitWebAnnouncement) {
+  btnSubmitWebAnnouncement.addEventListener('click', async () => {
+    if (!canEdit) {
+      showToast('คุณไม่มีสิทธิ์ส่งประกาศ (เฉพาะยศหัวหน้า/ผู้จัดการเท่านั้น)', 'error');
+      return;
+    }
+
+    const title = webAnnTitle ? webAnnTitle.value.trim() : '';
+    const message = webAnnMessage ? webAnnMessage.value.trim() : '';
+    const imageUrl = webAnnImageUrl ? webAnnImageUrl.value.trim() : '';
+
+    if (!title || !message) {
+      showToast('กรุณากรอกหัวข้อและรายละเอียดข่าวสารให้ครบถ้วน', 'warning');
+      return;
+    }
+
+    const selectedMentions = [];
+    document.querySelectorAll('.chk-mention:checked').forEach(chk => {
+      selectedMentions.push(chk.value);
+    });
+
+    btnSubmitWebAnnouncement.disabled = true;
+    btnSubmitWebAnnouncement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งประกาศ...';
+
+    try {
+      const response = await fetch('/api/announcements/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guildId,
+          userId,
+          title,
+          message,
+          imageUrl,
+          mentions: selectedMentions
+        })
+      });
+
+      const resData = await response.json();
+
+      if (resData.success) {
+        showToast('🎉 ส่งประกาศลง Discord เรียบร้อยแล้ว!', 'success');
+        if (webAnnTitle) webAnnTitle.value = '';
+        if (webAnnMessage) webAnnMessage.value = '';
+        if (webAnnImageUrl) webAnnImageUrl.value = '';
+        document.querySelectorAll('.chk-mention').forEach(chk => chk.checked = false);
+      } else {
+        showToast(`❌ ${resData.error || 'เกิดข้อผิดพลาดในการส่งประกาศ'}`, 'error');
+      }
+    } catch (err) {
+      console.error('[Web Announcement Error]', err);
+      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+    } finally {
+      btnSubmitWebAnnouncement.disabled = false;
+      btnSubmitWebAnnouncement.innerHTML = '<i class="fa-solid fa-paper-plane"></i> ส่งประกาศลง Discord ทันที';
+    }
+  });
 }
 
 // Initial Load

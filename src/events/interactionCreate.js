@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder, StringSelectMenuBuilder } = require('discord.js');
 const attendanceStore = require('../utils/attendanceStore');
 const attendancePanel = require('../commands/attendancePanel');
 const { sendSafeDM } = require('../utils/dmSender');
@@ -11,6 +11,73 @@ const STATUS_ICONS = {
   LATE: '🟡 มาสาย',
   ABSENT: '🔴 ขาด'
 };
+
+// Helper: Render Step 4 Mention Selection Window
+async function renderStep4MentionWindow(interaction, draft) {
+  const announcementStore = require('../utils/announcementStore');
+
+  const selectedMentions = draft.mentions || [];
+  let mentionDisplay = '🔕 ไม่แท็ก';
+  if (selectedMentions.length > 0) {
+    const labelMap = {
+      everyone: '📢 @everyone',
+      here: '🔔 @here',
+      manager: '👔 @ผู้จัดการ',
+      leader: '👑 @หัวหน้า',
+      member: '👤 @สมาชิก'
+    };
+    mentionDisplay = selectedMentions.map(m => labelMap[m] || m).join('  |  ');
+  }
+
+  const embedStep4 = new EmbedBuilder()
+    .setTitle('🏷️ ขั้นตอนที่ 4/5: เลือกการแท็กแจ้งเตือน (เลือกได้มากกว่า 1 ข้อ)')
+    .setDescription(
+      `📌 **หัวข้อประกาศ**: **${draft.title}**\n` +
+      `🖼️ **สถานะรูปภาพ**: \` ${draft.imageUrl ? '✅ แนบรูปภาพแล้ว' : '❌ ไม่แนบรูปภาพ'} \`\n` +
+      `🏷️ **แท็กที่เลือกในปัจจุบัน**: \` ${mentionDisplay} \`\n\n` +
+      `👇 **กรุณากดเลือกแท็กในเมนูด้านล่าง (สามารถเลือกได้หลายข้อ) แล้วกดปุ่มยืนยันโพสต์ด้านล่าง:**`
+    )
+    .setColor(0x8b5cf6)
+    .setFooter({ text: 'ระบบประกาศข่าวสาร แฟม up2m' });
+
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId('select_ann_mentions')
+    .setPlaceholder('👉 กดเลือกแท็กแจ้งเตือน (เลือกได้มากกว่า 1 ข้อ)...')
+    .setMinValues(0)
+    .setMaxValues(5)
+    .addOptions(
+      { label: '📢 @everyone', value: 'everyone', description: 'แท็กทุกคนในเซิร์ฟเวอร์', default: selectedMentions.includes('everyone') },
+      { label: '🔔 @here', value: 'here', description: 'แท็กสมาชิกที่กำลังออนไลน์', default: selectedMentions.includes('here') },
+      { label: '👔 @ผู้จัดการ', value: 'manager', description: 'แท็กเฉพาะยศผู้จัดการ', default: selectedMentions.includes('manager') },
+      { label: '👑 @หัวหน้า', value: 'leader', description: 'แท็กเฉพาะยศหัวหน้า', default: selectedMentions.includes('leader') },
+      { label: '👤 @สมาชิก', value: 'member', description: 'แท็กเฉพาะยศสมาชิก', default: selectedMentions.includes('member') }
+    );
+
+  const btnConfirmPublish = new ButtonBuilder()
+    .setCustomId('btn_step5_confirm_publish')
+    .setLabel('🚀 ยืนยันและโพสต์ประกาศ')
+    .setStyle(ButtonStyle.Success);
+
+  const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
+  const rowConfirm = new ActionRowBuilder().addComponents(btnConfirmPublish);
+
+  const payload = {
+    content: '✅ **บันทึกขั้นตอนรูปภาพเรียบร้อยแล้ว!**',
+    embeds: [embedStep4],
+    components: [rowSelect, rowConfirm],
+    ephemeral: true
+  };
+
+  if (interaction.isModalSubmit() || interaction.replied || interaction.deferred) {
+    if (interaction.replied || interaction.deferred) {
+      return await interaction.editReply(payload).catch(() => {});
+    } else {
+      return await interaction.reply(payload).catch(() => {});
+    }
+  } else if (interaction.isMessageComponent()) {
+    return await interaction.update(payload).catch(() => {});
+  }
+}
 
 module.exports = {
   name: 'interactionCreate',
@@ -31,7 +98,7 @@ module.exports = {
       if (interaction.isModalSubmit()) {
         const announcementStore = require('../utils/announcementStore');
 
-        // Modal Step 1 Submit: Title & Message
+        // Step 2 Modal Submit: Title & Message
         if (interaction.customId === 'modal_create_announcement') {
           const title = interaction.fields.getTextInputValue('ann_title');
           const message = interaction.fields.getTextInputValue('ann_message');
@@ -40,54 +107,48 @@ module.exports = {
           announcementStore.setDraft(interaction.user.id, {
             title,
             message,
-            imageUrl: null
+            imageUrl: null,
+            mentions: []
           });
 
-          // Build Step 2 Ephemeral Controls (Mention Selection + Optional Image Attachment)
-          const embedStep2 = new EmbedBuilder()
-            .setTitle('📝 ขั้นตอนที่ 2/2: เลือกการแท็กแจ้งเตือน & แนบรูปภาพ')
+          // Show Step 3 Ephemeral Window: Image Selection Choice
+          const embedStep3 = new EmbedBuilder()
+            .setTitle('🖼️ ขั้นตอนที่ 3/5: เลือกการแนบรูปภาพประกอบ')
             .setDescription(
-              `✅ **บันทึกรายละเอียดประกาศเรียบร้อยแล้ว!**\n\n` +
-              `> 📌 **หัวข้อ**: **${title}**\n` +
-              `> 🖼️ **สถานะรูปภาพ**: \` ยังไม่ได้แนบรูปภาพ \`\n\n` +
-              `👇 **กรุณาเลือกปุ่มการแท็กแจ้งเตือนด้านล่างเพื่อโพสต์ประกาศลงช่องทันที:**`
+              `✅ **บันทึกหัวข้อและรายละเอียดประกาศเรียบร้อยแล้ว!**\n\n` +
+              `> 📌 **หัวข้อ**: **${title}**\n\n` +
+              `👇 **ต้องการแนบรูปภาพประกอบประกาศหรือไม่? เลือกรูปแบบปุ่มด้านล่าง:**`
             )
             .setColor(0x8b5cf6)
             .setFooter({ text: 'ระบบประกาศข่าวสาร แฟม up2m' });
 
-          const btnEveryone = new ButtonBuilder()
-            .setCustomId('btn_pub_everyone')
-            .setLabel('📢 แท็ก @everyone')
-            .setStyle(ButtonStyle.Danger);
-
-          const btnHere = new ButtonBuilder()
-            .setCustomId('btn_pub_here')
-            .setLabel('🔔 แท็ก @here')
-            .setStyle(ButtonStyle.Primary);
-
-          const btnNone = new ButtonBuilder()
-            .setCustomId('btn_pub_none')
-            .setLabel('🔕 ไม่แท็ก')
-            .setStyle(ButtonStyle.Secondary);
-
-          const btnAddImage = new ButtonBuilder()
-            .setCustomId('btn_open_image_modal')
-            .setLabel('🖼️ แนบรูปภาพประกอบ')
+          const btnImgUrl = new ButtonBuilder()
+            .setCustomId('btn_step3_img_url')
+            .setLabel('🌐 ใส่ลิงก์รูปภาพ (Image URL)')
             .setStyle(ButtonStyle.Success);
 
-          const rowTags = new ActionRowBuilder().addComponents(btnEveryone, btnHere, btnNone);
-          const rowImage = new ActionRowBuilder().addComponents(btnAddImage);
+          const btnImgUpload = new ButtonBuilder()
+            .setCustomId('btn_step3_img_upload')
+            .setLabel('📤 อัปโหลดรูปภาพจากเครื่อง')
+            .setStyle(ButtonStyle.Primary);
+
+          const btnImgSkip = new ButtonBuilder()
+            .setCustomId('btn_step3_img_skip')
+            .setLabel('⏭️ ไม่แนบรูปภาพ (ข้าม)')
+            .setStyle(ButtonStyle.Secondary);
+
+          const rowImageButtons = new ActionRowBuilder().addComponents(btnImgUrl, btnImgUpload, btnImgSkip);
 
           return await interaction.reply({
-            embeds: [embedStep2],
-            components: [rowTags, rowImage],
+            embeds: [embedStep3],
+            components: [rowImageButtons],
             ephemeral: true
           });
         }
 
-        // Modal Image Submit: Image URL
-        if (interaction.customId === 'modal_add_ann_image') {
-          const imageUrl = interaction.fields.getTextInputValue('ann_image_url');
+        // Modal Image Submit (URL / Upload link)
+        if (interaction.customId === 'modal_add_ann_image_url' || interaction.customId === 'modal_add_ann_image_upload') {
+          const imageUrl = interaction.fields.getTextInputValue('ann_image_input');
           const draft = announcementStore.getDraft(interaction.user.id);
 
           if (draft) {
@@ -95,49 +156,7 @@ module.exports = {
             announcementStore.setDraft(interaction.user.id, draft);
           }
 
-          const title = draft ? draft.title : 'ประกาศ';
-          const hasImage = draft && draft.imageUrl;
-
-          const embedStep2 = new EmbedBuilder()
-            .setTitle('📝 ขั้นตอนที่ 2/2: เลือกการแท็กแจ้งเตือน & แนบรูปภาพ')
-            .setDescription(
-              `✅ **บันทึกรายละเอียดประกาศเรียบร้อยแล้ว!**\n\n` +
-              `> 📌 **หัวข้อ**: **${title}**\n` +
-              `> 🖼️ **สถานะรูปภาพ**: \` ${hasImage ? '✅ แนบรูปภาพเรียบร้อยแล้ว' : 'ยังไม่ได้แนบรูปภาพ'} \`\n\n` +
-              `👇 **กรุณาเลือกปุ่มการแท็กแจ้งเตือนด้านล่างเพื่อโพสต์ประกาศลงช่องทันที:**`
-            )
-            .setColor(0x8b5cf6)
-            .setFooter({ text: 'ระบบประกาศข่าวสาร แฟม up2m' });
-
-          const btnEveryone = new ButtonBuilder()
-            .setCustomId('btn_pub_everyone')
-            .setLabel('📢 แท็ก @everyone')
-            .setStyle(ButtonStyle.Danger);
-
-          const btnHere = new ButtonBuilder()
-            .setCustomId('btn_pub_here')
-            .setLabel('🔔 แท็ก @here')
-            .setStyle(ButtonStyle.Primary);
-
-          const btnNone = new ButtonBuilder()
-            .setCustomId('btn_pub_none')
-            .setLabel('🔕 ไม่แท็ก')
-            .setStyle(ButtonStyle.Secondary);
-
-          const btnAddImage = new ButtonBuilder()
-            .setCustomId('btn_open_image_modal')
-            .setLabel(hasImage ? '🖼️ เปลี่ยนรูปภาพแนบ' : '🖼️ แนบรูปภาพประกอบ')
-            .setStyle(ButtonStyle.Success);
-
-          const rowTags = new ActionRowBuilder().addComponents(btnEveryone, btnHere, btnNone);
-          const rowImage = new ActionRowBuilder().addComponents(btnAddImage);
-
-          return await interaction.reply({
-            content: '✅ **บันทึกรูปภาพเรียบร้อยแล้ว!**',
-            embeds: [embedStep2],
-            components: [rowTags, rowImage],
-            ephemeral: true
-          });
+          return await renderStep4MentionWindow(interaction, draft || { title: 'ประกาศ', mentions: [] });
         }
       }
 
@@ -185,16 +204,16 @@ module.exports = {
         return await interaction.showModal(modal);
       }
 
-      // 🖼️ Button Click: Open Image URL Modal
-      if (interaction.isButton() && interaction.customId === 'btn_open_image_modal') {
+      // 🖼️ Step 3 Button Click: Option A (Image URL)
+      if (interaction.isButton() && interaction.customId === 'btn_step3_img_url') {
         const modal = new ModalBuilder()
-          .setCustomId('modal_add_ann_image')
-          .setTitle('🖼️ แนบลิงก์รูปภาพประกอบประกาศ');
+          .setCustomId('modal_add_ann_image_url')
+          .setTitle('🌐 แนบลิงก์รูปภาพประกอบ (URL)');
 
         const imageInput = new TextInputBuilder()
-          .setCustomId('ann_image_url')
-          .setLabel('วางลิงก์รูปภาพ (URL: http:// หรือ https://)')
-          .setPlaceholder('เช่น https://i.imgur.com/example.png หรือ ลิงก์รูปจากดิสคอร์ด')
+          .setCustomId('ann_image_input')
+          .setLabel('วางลิงก์รูปภาพ (URL)')
+          .setPlaceholder('เช่น https://i.imgur.com/example.png')
           .setStyle(TextInputStyle.Short)
           .setRequired(true);
 
@@ -204,12 +223,49 @@ module.exports = {
         return await interaction.showModal(modal);
       }
 
-      // 🚀 Publish Buttons: btn_pub_everyone, btn_pub_here, btn_pub_none
-      if (interaction.isButton() && (
-        interaction.customId === 'btn_pub_everyone' ||
-        interaction.customId === 'btn_pub_here' ||
-        interaction.customId === 'btn_pub_none'
-      )) {
+      // 🖼️ Step 3 Button Click: Option B (Image Upload)
+      if (interaction.isButton() && interaction.customId === 'btn_step3_img_upload') {
+        const modal = new ModalBuilder()
+          .setCustomId('modal_add_ann_image_upload')
+          .setTitle('📤 อัปโหลดรูปภาพจากเครื่อง');
+
+        const imageInput = new TextInputBuilder()
+          .setCustomId('ann_image_input')
+          .setLabel('วางลิงก์รูปภาพ หรือ Copy Link จากดิส')
+          .setPlaceholder('ส่งรูปในดิสคอร์ดแล้วคัดลอก Copy Link มาวางที่นี่...')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
+
+        const row = new ActionRowBuilder().addComponents(imageInput);
+        modal.addComponents(row);
+
+        return await interaction.showModal(modal);
+      }
+
+      // ⏭️ Step 3 Button Click: Option C (Skip Image)
+      if (interaction.isButton() && interaction.customId === 'btn_step3_img_skip') {
+        const announcementStore = require('../utils/announcementStore');
+        const draft = announcementStore.getDraft(interaction.user.id);
+        if (draft) {
+          draft.imageUrl = null;
+          announcementStore.setDraft(interaction.user.id, draft);
+        }
+        return await renderStep4MentionWindow(interaction, draft || { title: 'ประกาศ', mentions: [] });
+      }
+
+      // 🏷️ Step 4 Multi-Select Dropdown Interaction: select_ann_mentions
+      if (interaction.isStringSelectMenu() && interaction.customId === 'select_ann_mentions') {
+        const announcementStore = require('../utils/announcementStore');
+        const draft = announcementStore.getDraft(interaction.user.id);
+        if (draft) {
+          draft.mentions = interaction.values || [];
+          announcementStore.setDraft(interaction.user.id, draft);
+        }
+        return await renderStep4MentionWindow(interaction, draft || { title: 'ประกาศ', mentions: [] });
+      }
+
+      // 🚀 Step 5 Button Click: Confirm & Publish Announcement
+      if (interaction.isButton() && interaction.customId === 'btn_step5_confirm_publish') {
         try {
           const announcementStore = require('../utils/announcementStore');
           const draft = announcementStore.getDraft(interaction.user.id);
@@ -221,7 +277,7 @@ module.exports = {
             });
           }
 
-          const { title, message, imageUrl } = draft;
+          const { title, message, imageUrl, mentions } = draft;
           const announcementId = `ann_${Date.now()}`;
           announcementStore.createAnnouncement(announcementId, {
             title,
@@ -231,6 +287,20 @@ module.exports = {
             authorName: interaction.member.displayName || interaction.user.username,
             channelId: interaction.channelId
           });
+
+          // Compile Multi-Mention String
+          const { LEADER_ROLE_ID, MANAGER_ROLE_ID, MEMBER_ROLE_ID } = config.roles;
+          const mentionParts = [];
+
+          if (mentions && mentions.length > 0) {
+            mentions.forEach(m => {
+              if (m === 'everyone') mentionParts.push('@everyone');
+              else if (m === 'here') mentionParts.push('@here');
+              else if (m === 'manager' && MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_')) mentionParts.push(`<@&${MANAGER_ROLE_ID}>`);
+              else if (m === 'leader' && LEADER_ROLE_ID && !LEADER_ROLE_ID.includes('YOUR_')) mentionParts.push(`<@&${LEADER_ROLE_ID}>`);
+              else if (m === 'member' && MEMBER_ROLE_ID && !MEMBER_ROLE_ID.includes('YOUR_')) mentionParts.push(`<@&${MEMBER_ROLE_ID}>`);
+            });
+          }
 
           const fs = require('fs');
           const path = require('path');
@@ -273,17 +343,17 @@ module.exports = {
 
           const row = new ActionRowBuilder().addComponents(btnAck, btnList);
 
-          let contentPrefix = '';
-          if (interaction.customId === 'btn_pub_everyone') contentPrefix = '@everyone ';
-          else if (interaction.customId === 'btn_pub_here') contentPrefix = '@here ';
+          const contentPrefix = mentionParts.length > 0 ? mentionParts.join(' ') : null;
 
+          // Send final announcement to channel
           await interaction.channel.send({
-            content: contentPrefix.trim() ? contentPrefix.trim() : null,
+            content: contentPrefix,
             embeds: [embed],
             components: [row],
             files: filesToSend
           });
 
+          // Clear user draft
           announcementStore.clearDraft(interaction.user.id);
 
           return await interaction.reply({
@@ -291,7 +361,7 @@ module.exports = {
             ephemeral: true
           });
         } catch (err) {
-          console.error('[Publish Announcement Error]', err);
+          console.error('[Step 5 Publish Announcement Error]', err);
           return await interaction.reply({
             content: '❌ **เกิดข้อผิดพลาดในการโพสต์ประกาศ**: ' + err.message,
             ephemeral: true

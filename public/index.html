@@ -34,13 +34,13 @@
 
         <!-- 5 Sidebar Navigation Menu Items matching image -->
         <nav class="sidebar-menu">
-          <a href="#" class="menu-item active">
-            <i class="fa-solid fa-house"></i>
-            <span>หน้าหลัก</span>
+          <a href="#" class="menu-item active" id="navAttendance">
+            <i class="fa-solid fa-list-check"></i>
+            <span>ตารางเช็คชื่อ</span>
           </a>
-          <a href="#" class="menu-item">
-            <i class="fa-regular fa-clock"></i>
-            <span>ประวัติการเช็คชื่อ</span>
+          <a href="#" class="menu-item" id="navAnnouncement">
+            <i class="fa-solid fa-bullhorn"></i>
+            <span>ประกาศ</span>
           </a>
           <a href="#" class="menu-item">
             <i class="fa-solid fa-calendar-days"></i>
@@ -74,7 +74,7 @@
     <main class="main-content">
       
       <!-- Main Check-in Table Card -->
-      <div class="main-table-card">
+      <div class="main-table-card" id="attendanceMainViewCard">
         
         <!-- Main Card Header with Sparkles -->
         <div class="card-header">
@@ -122,6 +122,112 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Announcement Management View Card -->
+      <div class="main-table-card" id="announcementViewCard" style="display: none;">
+        <!-- Header -->
+        <div class="card-header">
+          <div class="header-title-group">
+            <div class="icon-box-purple">
+              <i class="fa-solid fa-bullhorn"></i>
+            </div>
+            <div class="title-text">
+              <h1>สร้างประกาศข่าวสาร แฟม up2m</h1>
+              <p class="subtitle">
+                <i class="fa-solid fa-paper-plane"></i> ส่งประกาศข่าวสารลง Discord พร้อมการ์ดลายน้ำ U2M ทันที
+              </p>
+            </div>
+          </div>
+          <button class="btn-refresh-pill" id="btnBackToAttendance">
+            <i class="fa-solid fa-arrow-left"></i> กลับหน้าเช็คชื่อ
+          </button>
+        </div>
+
+        <!-- Announcement Form Container -->
+        <div class="announcement-form-container" style="flex: 1; overflow-y: auto; padding: 0.5rem 0.2rem;">
+          
+          <!-- Notice Box for Permissions -->
+          <div id="announcementPermNotice" class="loading-box" style="margin-bottom: 1rem; display: none; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444;">
+            ⚠️ เฉพาะยศ <strong>หัวหน้า</strong> หรือ <strong>ผู้จัดการ</strong> เท่านั้นที่มีสิทธิ์ส่งประกาศข่าวสาร
+          </div>
+
+          <!-- Form Fields -->
+          <div id="announcementFormFields" style="display: flex; flex-direction: column; gap: 1.25rem;">
+            
+            <!-- Field 1: Title -->
+            <div class="form-group">
+              <label style="font-weight: 700; font-size: 0.9rem; color: var(--purple-dark); display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
+                <i class="fa-solid fa-heading" style="color: var(--purple-primary);"></i> หัวข้อประกาศ <span style="color: #ef4444;">*</span>
+              </label>
+              <input type="text" id="webAnnTitle" class="web-input-field" placeholder="เช่น นัดประชุมประจำสัปดาห์ / แจ้งกิจกรรมแฟม U2M">
+            </div>
+
+            <!-- Field 2: Message -->
+            <div class="form-group">
+              <label style="font-weight: 700; font-size: 0.9rem; color: var(--purple-dark); display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
+                <i class="fa-solid fa-align-left" style="color: var(--purple-primary);"></i> รายละเอียดข่าวสาร <span style="color: #ef4444;">*</span>
+              </label>
+              <textarea id="webAnnMessage" class="web-input-field" rows="4" placeholder="พิมพ์เนื้อหาประกาศรายละเอียด วันเวลา นัดหมาย และข้อตกลงที่นี่ (รองรับการขึ้นบรรทัดใหม่)..."></textarea>
+            </div>
+
+            <!-- Field 3: Image URL -->
+            <div class="form-group">
+              <label style="font-weight: 700; font-size: 0.9rem; color: var(--purple-dark); display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
+                <i class="fa-solid fa-image" style="color: var(--purple-primary);"></i> ลิงก์รูปภาพประกอบ (Image URL) <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 400;">(ไม่บังคับ)</span>
+              </label>
+              <input type="url" id="webAnnImageUrl" class="web-input-field" placeholder="วาง URL ลิงก์รูปภาพ เช่น https://i.imgur.com/example.png หรือ ลิงก์รูปจากดิสคอร์ด">
+            </div>
+
+            <!-- Field 4: Multi-Mention Checkboxes -->
+            <div class="form-group">
+              <label style="font-weight: 700; font-size: 0.9rem; color: var(--purple-dark); display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem;">
+                <i class="fa-solid fa-at" style="color: var(--purple-primary);"></i> การแท็กแจ้งเตือนสมาชิกใน Discord <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 400;">(เลือกได้มากกว่า 1 ข้อ)</span>
+              </label>
+              
+              <div class="mention-checkbox-grid">
+                <label class="mention-check-card">
+                  <input type="checkbox" value="everyone" class="chk-mention">
+                  <span class="check-title">📢 @everyone</span>
+                  <span class="check-sub">แท็กทุกคนในเซิร์ฟเวอร์</span>
+                </label>
+                <label class="mention-check-card">
+                  <input type="checkbox" value="here" class="chk-mention">
+                  <span class="check-title">🔔 @here</span>
+                  <span class="check-sub">แท็กเฉพาะคนที่ออนไลน์</span>
+                </label>
+                <label class="mention-check-card">
+                  <input type="checkbox" value="manager" class="chk-mention">
+                  <span class="check-title">👔 @ผู้จัดการ</span>
+                  <span class="check-sub">แท็กยศผู้จัดการ</span>
+                </label>
+                <label class="mention-check-card">
+                  <input type="checkbox" value="leader" class="chk-mention">
+                  <span class="check-title">👑 @หัวหน้า</span>
+                  <span class="check-sub">แท็กยศหัวหน้า</span>
+                </label>
+                <label class="mention-check-card">
+                  <input type="checkbox" value="member" class="chk-mention">
+                  <span class="check-title">👤 @สมาชิก</span>
+                  <span class="check-sub">แท็กยศสมาชิก</span>
+                </label>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Announcement Card Footer Action -->
+        <div class="card-footer-action">
+          <div class="footer-info-text">
+            <i class="fa-solid fa-circle-info"></i> ประกาศจะถูกส่งไปยังช่อง Discord พร้อมการ์ดลายน้ำ U2M ทันที
+          </div>
+          <div class="footer-right-action">
+            <button class="btn-confirm-purple" id="btnSubmitWebAnnouncement" style="padding: 0.75rem 1.6rem;">
+              <i class="fa-solid fa-paper-plane"></i> ส่งประกาศลง Discord ทันที
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Bottom Split Banner (2 Cards matching reference image) -->
