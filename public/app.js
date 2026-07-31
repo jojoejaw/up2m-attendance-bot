@@ -59,13 +59,6 @@ updateDateDisplay();
 // Fetch Data from Server
 async function fetchMembersData() {
   try {
-    if (!userId) {
-      try {
-        const savedId = localStorage.getItem('saved_user_id');
-        if (savedId) userId = savedId;
-      } catch (e) {}
-    }
-
     if (memberRowsList) {
       memberRowsList.innerHTML = `
         <div class="loading-box">
@@ -466,78 +459,6 @@ if (btnCloseModal) {
 
 if (btnRefresh) {
   btnRefresh.addEventListener('click', fetchMembersData);
-}
-
-// User Profile Switcher Modal Logic
-const sidebarUserCard = document.getElementById('sidebarUserCard');
-const userSwitchModal = document.getElementById('userSwitchModal');
-const userSwitchList = document.getElementById('userSwitchList');
-const btnCloseUserSwitchModal = document.getElementById('btnCloseUserSwitchModal');
-
-if (sidebarUserCard) {
-  sidebarUserCard.addEventListener('click', openUserSwitchModal);
-}
-
-if (btnCloseUserSwitchModal) {
-  btnCloseUserSwitchModal.addEventListener('click', () => {
-    if (userSwitchModal) userSwitchModal.classList.remove('active');
-  });
-}
-
-function openUserSwitchModal() {
-  if (!userSwitchModal || !userSwitchList) return;
-  
-  if (!membersData || membersData.length === 0) {
-    userSwitchList.innerHTML = '<div style="font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 1rem;">ไม่พบข้อมูลสมาชิก</div>';
-  } else {
-    userSwitchList.innerHTML = '';
-    membersData.forEach(m => {
-      const item = document.createElement('div');
-      const isCurrent = currentUser && currentUser.id === m.id;
-      
-      item.style.cssText = `
-        background: ${isCurrent ? 'var(--purple-light)' : 'var(--bg-subtle)'};
-        border: 1px solid ${isCurrent ? 'var(--purple-primary)' : 'var(--border-card)'};
-        border-radius: 12px;
-        padding: 0.6rem 0.85rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        cursor: pointer;
-        transition: all 0.2s ease;
-      `;
-
-      item.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 0.65rem;">
-          <img src="${m.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width: 34px; height: 34px; border-radius: 50%; object-fit: cover;">
-          <div style="display: flex; flex-direction: column;">
-            <strong style="font-size: 0.85rem; color: var(--text-main);">${m.displayName || m.username}</strong>
-            <span style="font-size: 0.72rem; color: var(--text-muted);">@${m.username || 'user'}</span>
-          </div>
-        </div>
-        <span class="role-pill ${m.roleName === 'หัวหน้า' ? 'role-pill-leader' : m.roleName === 'ผู้จัดการ' ? 'role-pill-manager' : 'role-pill-member'}" style="font-size: 0.72rem; padding: 0.2rem 0.65rem;">
-          ${m.roleName || 'สมาชิก'}
-        </span>
-      `;
-
-      item.addEventListener('click', () => {
-        userId = m.id;
-        try {
-          localStorage.setItem('saved_user_id', m.id);
-          const newUrl = `${window.location.pathname}?guildId=${guildId}&userId=${m.id}`;
-          window.history.replaceState(null, '', newUrl);
-        } catch (e) {}
-
-        if (userSwitchModal) userSwitchModal.classList.remove('active');
-        fetchMembersData();
-        showToast(`สลับโปรไฟล์เป็นคุณ "${m.displayName}" เรียบร้อยแล้ว`, 'success');
-      });
-
-      userSwitchList.appendChild(item);
-    });
-  }
-
-  userSwitchModal.classList.add('active');
 }
 
 // Initial Load

@@ -26,6 +26,25 @@ module.exports = {
       // 2. Handle Component Interactions (Buttons / Select Menus)
       if (!interaction.isMessageComponent()) return;
 
+      // 🌐 Handle Per-User Personal Dashboard Link Button (Sends private link for the exact clicking user)
+      if (interaction.isButton() && interaction.customId === 'btn_open_dashboard') {
+        const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+        const personalUrl = `${baseUrl}/?guildId=${interaction.guildId}&userId=${interaction.user.id}`;
+
+        const btnPersonalLink = new ButtonBuilder()
+          .setLabel('🌐 คลิกตรงนี้เพื่อเปิดหน้าเว็บของคุณ')
+          .setURL(personalUrl)
+          .setStyle(ButtonStyle.Link);
+
+        const row = new ActionRowBuilder().addComponents(btnPersonalLink);
+
+        return await interaction.reply({
+          content: `👋 **สวัสดีครับคุณ ${interaction.user}!** คลิกปุ่มด้านล่างเพื่อเปิดหน้าเว็บโปรไฟล์ส่วนตัวของคุณได้เลยครับ:`,
+          components: [row],
+          ephemeral: true
+        });
+      }
+
       const { MANAGER_ROLE_ID } = config.roles;
       const isManager = interaction.member.roles.cache.has(MANAGER_ROLE_ID) ||
         interaction.member.permissions.has(PermissionFlagsBits.Administrator);

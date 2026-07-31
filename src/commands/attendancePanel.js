@@ -36,9 +36,9 @@ function buildAttendanceUI(guild, session, requestingUser) {
     .setTimestamp();
 
   const btnWebDashboard = new ButtonBuilder()
+    .setCustomId('btn_open_dashboard')
     .setLabel('🌐 เปิดหน้าเว็บระบบเช็คชื่อ แฟม up2m')
-    .setURL(dashboardUrl)
-    .setStyle(ButtonStyle.Link);
+    .setStyle(ButtonStyle.Primary);
 
   const row = new ActionRowBuilder().addComponents(btnWebDashboard);
 
