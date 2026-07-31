@@ -108,7 +108,18 @@ async function fetchMembersData() {
 
       if (sidebarUserAvatar) sidebarUserAvatar.src = currentUser.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png';
       if (sidebarUserName) sidebarUserName.textContent = currentUser.displayName || 'ผู้ใช้งาน';
-      if (sidebarUserRole) sidebarUserRole.textContent = currentUser.roleName || 'สมาชิก';
+      if (sidebarUserRole) {
+        sidebarUserRole.textContent = currentUser.roleName || 'สมาชิก';
+        if (currentUser.roleName === 'หัวหน้า') {
+          sidebarUserRole.style.color = '#d97706';
+        } else if (currentUser.roleName === 'ผู้จัดการ') {
+          sidebarUserRole.style.color = '#4f46e5';
+        } else if (currentUser.roleName === 'สมาชิก') {
+          sidebarUserRole.style.color = '#10b981';
+        } else {
+          sidebarUserRole.style.color = '#94a3b8';
+        }
+      }
     }
 
     membersData = data.members || [];

@@ -48,7 +48,10 @@ function startWebServer(client) {
       let canEdit = false;
 
       if (userId) {
-        const currentMember = allMembers.get(userId);
+        let currentMember = allMembers.get(userId);
+        if (!currentMember) {
+          currentMember = await guild.members.fetch(userId).catch(() => null);
+        }
         if (currentMember) {
           const isManager = MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_') && currentMember.roles.cache.has(MANAGER_ROLE_ID);
           const isLeader = LEADER_ROLE_ID && !LEADER_ROLE_ID.includes('YOUR_') && currentMember.roles.cache.has(LEADER_ROLE_ID);
