@@ -57,8 +57,8 @@
         </nav>
       </div>
 
-      <!-- Bottom Manager Profile Card -->
-      <div class="sidebar-user-card">
+      <!-- Bottom Manager Profile Card (Clickable to Switch User Profile) -->
+      <div class="sidebar-user-card" id="sidebarUserCard" title="คลิกเพื่อสลับโปรไฟล์ผู้ใช้งาน">
         <div class="user-avatar-wrapper">
           <img src="https://cdn.discordapp.com/embed/avatars/0.png" id="sidebarUserAvatar" alt="User Avatar">
           <span class="user-status-dot"></span>
@@ -249,6 +249,21 @@
       <h2>บันทึกการเช็คชื่อสำเร็จ!</h2>
       <p id="modalMessage">ระบบได้ส่ง DM แจ้งเตือนไปยังสมาชิกทุกคน และบันทึกประวัติลง Log Channel เรียบร้อยแล้ว</p>
       <button class="btn-primary" id="btnCloseModal">ตกลง</button>
+    </div>
+  </div>
+
+  <!-- User Profile Switcher Modal -->
+  <div class="modal-backdrop" id="userSwitchModal">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-icon" style="color: var(--purple-primary); font-size: 2.2rem; margin-bottom: 0.5rem;">
+        <i class="fa-solid fa-user-gear"></i>
+      </div>
+      <h2>สลับโปรไฟล์ผู้ใช้งาน</h2>
+      <p style="margin-bottom: 1.1rem; font-size: 0.85rem; color: var(--text-muted);">เลือกชื่อของคุณจากรายชื่อในดิสคอร์ด เพื่อสลับโปรไฟล์และสิทธิ์การใช้งาน:</p>
+      <div id="userSwitchList" style="display: flex; flex-direction: column; gap: 0.55rem; max-height: 260px; overflow-y: auto; text-align: left; margin-bottom: 1.2rem; padding-right: 0.3rem;">
+        <!-- Dynamic member list for switching -->
+      </div>
+      <button class="btn-refresh-pill" id="btnCloseUserSwitchModal" style="width: 100%; justify-content: center; padding: 0.65rem;">ปิดหน้าต่าง</button>
     </div>
   </div>
 
