@@ -27,6 +27,69 @@ module.exports = {
         }
       }
 
+      // 1.5 Handle Modal Submissions
+      if (interaction.isModalSubmit()) {
+        if (interaction.customId === 'modal_create_announcement') {
+          await interaction.deferReply({ ephemeral: false });
+
+          const title = interaction.fields.getTextInputValue('ann_title');
+          const message = interaction.fields.getTextInputValue('ann_message');
+          const mentionInput = (interaction.fields.getTextInputValue('ann_mention') || 'none').toLowerCase().trim();
+
+          const announcementStore = require('../utils/announcementStore');
+          const announcementId = `ann_${Date.now()}`;
+          announcementStore.createAnnouncement(announcementId, {
+            title,
+            message,
+            authorId: interaction.user.id,
+            authorName: interaction.member.displayName || interaction.user.username,
+            channelId: interaction.channelId
+          });
+
+          const path = require('path');
+          const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
+          const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
+
+          const embed = new EmbedBuilder()
+            .setTitle(`📢 ${title}`)
+            .setDescription(
+              `### 📌 รายละเอียดข่าวสาร\n` +
+              `> ${message.replace(/\n/g, '\n> ')}\n\n` +
+              `──────────────────────────────\n` +
+              `> 👔 **ผู้ประกาศ**: \` ${interaction.member.displayName || interaction.user.username} \`\n` +
+              `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+              `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
+            )
+            .setColor(0x8b5cf6)
+            .setThumbnail('attachment://u2m_logo.png')
+            .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
+            .setTimestamp();
+
+          const btnAck = new ButtonBuilder()
+            .setCustomId(`ack_${announcementId}`)
+            .setLabel('🔔 กดรับทราบข่าวสาร')
+            .setStyle(ButtonStyle.Success);
+
+          const btnList = new ButtonBuilder()
+            .setCustomId(`list_ack_${announcementId}`)
+            .setLabel('📋 ดูรายชื่อผู้รับทราบ')
+            .setStyle(ButtonStyle.Secondary);
+
+          const row = new ActionRowBuilder().addComponents(btnAck, btnList);
+
+          let contentPrefix = '';
+          if (mentionInput === 'everyone') contentPrefix = '@everyone ';
+          else if (mentionInput === 'here') contentPrefix = '@here ';
+
+          return await interaction.editReply({
+            content: contentPrefix.trim() ? contentPrefix.trim() : null,
+            embeds: [embed],
+            components: [row],
+            files: [logoAttachment]
+          });
+        }
+      }
+
       // 2. Handle Component Interactions (Buttons / Select Menus)
       if (!interaction.isMessageComponent()) return;
 

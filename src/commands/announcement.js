@@ -1,45 +1,17 @@
 const { 
   SlashCommandBuilder, 
-  EmbedBuilder, 
-  ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle,
-  AttachmentBuilder,
+  ModalBuilder, 
+  TextInputBuilder, 
+  TextInputStyle, 
+  ActionRowBuilder,
   PermissionFlagsBits
 } = require('discord.js');
-const path = require('path');
-const announcementStore = require('../utils/announcementStore');
 const config = require('../config.json');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('announcement')
-    .setDescription('สร้างประกาศข่าวสาร แฟม U2M พร้อมระบบกดรับทราบ (เฉพาะหัวหน้า/ผู้จัดการ)')
-    .addStringOption(option =>
-      option.setName('title')
-        .setDescription('หัวข้อประกาศ')
-        .setRequired(true)
-    )
-    .addStringOption(option =>
-      option.setName('message')
-        .setDescription('รายละเอียดข่าวสารประกาศ (สามารถใช้การขึ้นบรรทัดใหม่ได้)')
-        .setRequired(true)
-    )
-    .addAttachmentOption(option =>
-      option.setName('image')
-        .setDescription('รูปภาพประกอบประกาศ (แนบไฟล์รูปภาพ)')
-        .setRequired(false)
-    )
-    .addStringOption(option =>
-      option.setName('mention')
-        .setDescription('การแท็กแจ้งเตือนสมาชิก')
-        .setRequired(false)
-        .addChoices(
-          { name: '📢 @everyone (แท็กทุกคน)', value: 'everyone' },
-          { name: '🔔 @here (แท็กคนที่ออนไลน์)', value: 'here' },
-          { name: '🔕 ไม่แท็ก', value: 'none' }
-        )
-    ),
+    .setDescription('เปิดหน้าต่างป๊อปอัปสร้างประกาศข่าวสาร แฟม U2M (เฉพาะหัวหน้า/ผู้จัดการ)'),
 
   async execute(interaction) {
     try {
@@ -58,80 +30,45 @@ module.exports = {
         });
       }
 
-      await interaction.deferReply({ ephemeral: false });
+      // 📌 Create Native Discord Modal Popup Window
+      const modal = new ModalBuilder()
+        .setCustomId('modal_create_announcement')
+        .setTitle('📢 สร้างประกาศข่าวสาร แฟม U2M');
 
-      const title = interaction.options.getString('title');
-      const message = interaction.options.getString('message');
-      const imageAttachment = interaction.options.getAttachment('image');
-      const mentionOption = interaction.options.getString('mention') || 'none';
+      const titleInput = new TextInputBuilder()
+        .setCustomId('ann_title')
+        .setLabel('หัวข้อประกาศ')
+        .setPlaceholder('เช่น นัดประชุมประจำสัปดาห์ / แจ้งกิจกรรมแฟม')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
 
-      // Create unique Announcement Record ID
-      const announcementId = `ann_${Date.now()}`;
-      announcementStore.createAnnouncement(announcementId, {
-        title,
-        message,
-        authorId: interaction.user.id,
-        authorName: interaction.member.displayName || interaction.user.username,
-        channelId: interaction.channelId
-      });
+      const messageInput = new TextInputBuilder()
+        .setCustomId('ann_message')
+        .setLabel('รายละเอียดข่าวสาร (พิมพ์ได้หลายบรรทัด)')
+        .setPlaceholder('พิมพ์เนื้อหาประกาศรายละเอียด วันเวลา และข้อตกลงที่นี่...')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true);
 
-      // Prepare U2M Metallic Logo Attachment
-      const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
-      const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
-      const filesToSend = [logoAttachment];
+      const mentionInput = new TextInputBuilder()
+        .setCustomId('ann_mention')
+        .setLabel('แท็กแจ้งเตือน (พิมพ์: everyone / here / none)')
+        .setPlaceholder('พิมพ์ everyone หรือ here หรือ none (ค่าเริ่มต้นคือ none)')
+        .setStyle(TextInputStyle.Short)
+        .setValue('none')
+        .setRequired(false);
 
-      // Build Premium, High-Contrast U2M Announcement Embed Card
-      const embed = new EmbedBuilder()
-        .setTitle(`📢  ${title}`)
-        .setDescription(
-          `### 📌 รายละเอียดข่าวสาร\n` +
-          `> ${message.replace(/\n/g, '\n> ')}\n\n` +
-          `──────────────────────────────\n` +
-          `> 👔 **ผู้ประกาศ**: \` ${interaction.member.displayName || interaction.user.username} \`\n` +
-          `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-          `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
-        )
-        .setColor(0x8b5cf6)
-        .setThumbnail('attachment://u2m_logo.png')
-        .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
-        .setTimestamp();
+      const row1 = new ActionRowBuilder().addComponents(titleInput);
+      const row2 = new ActionRowBuilder().addComponents(messageInput);
+      const row3 = new ActionRowBuilder().addComponents(mentionInput);
 
-      // Handle Image Attachment if provided
-      if (imageAttachment && imageAttachment.contentType?.startsWith('image/')) {
-        embed.setImage(imageAttachment.url);
-      }
+      modal.addComponents(row1, row2, row3);
 
-      // Interactive Buttons
-      const btnAck = new ButtonBuilder()
-        .setCustomId(`ack_${announcementId}`)
-        .setLabel('🔔 กดรับทราบข่าวสาร')
-        .setStyle(ButtonStyle.Success);
-
-      const btnList = new ButtonBuilder()
-        .setCustomId(`list_ack_${announcementId}`)
-        .setLabel('📋 ดูรายชื่อผู้รับทราบ')
-        .setStyle(ButtonStyle.Secondary);
-
-      const row = new ActionRowBuilder().addComponents(btnAck, btnList);
-
-      // Handle Mention Text
-      let contentPrefix = '';
-      if (mentionOption === 'everyone') contentPrefix = '@everyone ';
-      else if (mentionOption === 'here') contentPrefix = '@here ';
-
-      await interaction.editReply({
-        content: contentPrefix.trim() ? contentPrefix.trim() : null,
-        embeds: [embed],
-        components: [row],
-        files: filesToSend
-      });
+      await interaction.showModal(modal);
 
     } catch (error) {
-      console.error('[Announcement Command Error]', error);
-      if (interaction.deferred) {
-        await interaction.editReply({ content: '❌ **เกิดข้อผิดพลาดในการสร้างประกาศ**: ' + error.message }).catch(() => {});
-      } else {
-        await interaction.reply({ content: '❌ **เกิดข้อผิดพลาดในการสร้างประกาศ**: ' + error.message, ephemeral: true }).catch(() => {});
+      console.error('[Announcement Command Modal Error]', error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ **เกิดข้อผิดพลาดในการเปิดหน้าต่างประกาศ**: ' + error.message, ephemeral: true }).catch(() => {});
       }
     }
   }
