@@ -210,83 +210,93 @@ module.exports = {
         interaction.customId === 'btn_pub_here' ||
         interaction.customId === 'btn_pub_none'
       )) {
-        const announcementStore = require('../utils/announcementStore');
-        const draft = announcementStore.getDraft(interaction.user.id);
+        try {
+          const announcementStore = require('../utils/announcementStore');
+          const draft = announcementStore.getDraft(interaction.user.id);
 
-        if (!draft) {
+          if (!draft) {
+            return await interaction.reply({
+              content: '⚠️ **ไม่พบร่างประกาศของคุณ** กรุณากดปุ่มสร้างประกาศใหม่อีกครั้งครับ',
+              ephemeral: true
+            });
+          }
+
+          const { title, message, imageUrl } = draft;
+          const announcementId = `ann_${Date.now()}`;
+          announcementStore.createAnnouncement(announcementId, {
+            title,
+            message,
+            imageUrl,
+            authorId: interaction.user.id,
+            authorName: interaction.member.displayName || interaction.user.username,
+            channelId: interaction.channelId
+          });
+
+          const fs = require('fs');
+          const path = require('path');
+          const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
+          const filesToSend = [];
+
+          const embed = new EmbedBuilder()
+            .setTitle(`📢 ${title}`)
+            .setDescription(
+              `### 📌 รายละเอียดข่าวสาร\n` +
+              `> ${message.replace(/\n/g, '\n> ')}\n\n` +
+              `──────────────────────────────\n` +
+              `> 👔 **ผู้ประกาศ**: \` ${interaction.member.displayName || interaction.user.username} \`\n` +
+              `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+              `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
+            )
+            .setColor(0x8b5cf6)
+            .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
+            .setTimestamp();
+
+          if (fs.existsSync(logoPath)) {
+            const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
+            filesToSend.push(logoAttachment);
+            embed.setThumbnail('attachment://u2m_logo.png');
+          }
+
+          if (imageUrl) {
+            embed.setImage(imageUrl);
+          }
+
+          const btnAck = new ButtonBuilder()
+            .setCustomId(`ack_${announcementId}`)
+            .setLabel('🔔 กดรับทราบข่าวสาร')
+            .setStyle(ButtonStyle.Success);
+
+          const btnList = new ButtonBuilder()
+            .setCustomId(`list_ack_${announcementId}`)
+            .setLabel('📋 ดูรายชื่อผู้รับทราบ')
+            .setStyle(ButtonStyle.Secondary);
+
+          const row = new ActionRowBuilder().addComponents(btnAck, btnList);
+
+          let contentPrefix = '';
+          if (interaction.customId === 'btn_pub_everyone') contentPrefix = '@everyone ';
+          else if (interaction.customId === 'btn_pub_here') contentPrefix = '@here ';
+
+          await interaction.channel.send({
+            content: contentPrefix.trim() ? contentPrefix.trim() : null,
+            embeds: [embed],
+            components: [row],
+            files: filesToSend
+          });
+
+          announcementStore.clearDraft(interaction.user.id);
+
           return await interaction.reply({
-            content: '⚠️ **ไม่พบร่างประกาศของคุณ** กรุณากดปุ่มสร้างประกาศใหม่อีกครั้งครับ',
+            content: '🎉 **โพสต์ประกาศข่าวสารลงช่องเรียบร้อยแล้วครับ!**',
             ephemeral: true
           });
+        } catch (err) {
+          console.error('[Publish Announcement Error]', err);
+          return await interaction.reply({
+            content: '❌ **เกิดข้อผิดพลาดในการโพสต์ประกาศ**: ' + err.message,
+            ephemeral: true
+          }).catch(() => {});
         }
-
-        const { title, message, imageUrl } = draft;
-        const announcementId = `ann_${Date.now()}`;
-        announcementStore.createAnnouncement(announcementId, {
-          title,
-          message,
-          imageUrl,
-          authorId: interaction.user.id,
-          authorName: interaction.member.displayName || interaction.user.username,
-          channelId: interaction.channelId
-        });
-
-        // Prepare U2M Logo Attachment
-        const path = require('path');
-        const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
-        const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
-
-        // Build Final U2M Announcement Embed Card
-        const embed = new EmbedBuilder()
-          .setTitle(`📢 ${title}`)
-          .setDescription(
-            `### 📌 รายละเอียดข่าวสาร\n` +
-            `> ${message.replace(/\n/g, '\n> ')}\n\n` +
-            `──────────────────────────────\n` +
-            `> 👔 **ผู้ประกาศ**: \` ${interaction.member.displayName || interaction.user.username} \`\n` +
-            `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-            `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
-          )
-          .setColor(0x8b5cf6)
-          .setThumbnail('attachment://u2m_logo.png')
-          .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
-          .setTimestamp();
-
-        if (imageUrl) {
-          embed.setImage(imageUrl);
-        }
-
-        const btnAck = new ButtonBuilder()
-          .setCustomId(`ack_${announcementId}`)
-          .setLabel('🔔 กดรับทราบข่าวสาร')
-          .setStyle(ButtonStyle.Success);
-
-        const btnList = new ButtonBuilder()
-          .setCustomId(`list_ack_${announcementId}`)
-          .setLabel('📋 ดูรายชื่อผู้รับทราบ')
-          .setStyle(ButtonStyle.Secondary);
-
-        const row = new ActionRowBuilder().addComponents(btnAck, btnList);
-
-        let contentPrefix = '';
-        if (interaction.customId === 'btn_pub_everyone') contentPrefix = '@everyone ';
-        else if (interaction.customId === 'btn_pub_here') contentPrefix = '@here ';
-
-        // Post announcement to channel
-        await interaction.channel.send({
-          content: contentPrefix.trim() ? contentPrefix.trim() : null,
-          embeds: [embed],
-          components: [row],
-          files: [logoAttachment]
-        });
-
-        // Clear user draft
-        announcementStore.clearDraft(interaction.user.id);
-
-        return await interaction.reply({
-          content: '🎉 **โพสต์ประกาศข่าวสารลงช่องเรียบร้อยแล้วครับ!**',
-          ephemeral: true
-        });
       }
 
       // 📢 Handle Announcement Acknowledgment Button (ack_ann_...)
