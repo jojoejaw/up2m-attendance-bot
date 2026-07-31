@@ -48,11 +48,11 @@ async function sendAttendanceSummaryLog(client, { managerName, totalMembers, pre
   const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
 
   const embed = new EmbedBuilder()
-    .setTitle('📋 รายงานสรุปผลการเช็คชื่อ แฟม up2m ประจำวัน')
+    .setTitle('📋 รายงานการเช็คชื่อ แฟม up2m ประจำวัน')
     .setDescription(
-      `> 👔 **ผู้บันทึก**: **${managerName}**\n` +
-      `> ⏰ **เวลาที่บันทึก**: ${nowFormatted}\n\n` +
-      `📊 **สรุปภาพรวมการเช็คชื่อ**:\n` +
+      `> **ผู้บันทึก**: **${managerName}**\n` +
+      `>  **เวลาที่บันทึก**: ${nowFormatted}\n\n` +
+      ` **สรุปภาพรวมการเช็คชื่อ**:\n` +
       `> • สมาชิกทั้งหมด: \` ${totalMembers} คน \`\n` +
       `> • 🟢 มา: \` ${presentCount} คน \`\n` +
       `> • 🟡 มาสาย: \` ${lateCount} คน \`\n` +

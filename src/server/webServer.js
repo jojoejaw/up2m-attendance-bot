@@ -269,13 +269,13 @@ function startWebServer(client) {
           const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
 
           const dmEmbed = new EmbedBuilder()
-            .setTitle('📌 แจ้งเตือนสถานะการเช็คชื่อ แฟม up2m')
+            .setTitle('แจ้งเตือนสถานะการเช็คชื่อ แฟม up2m')
             .setDescription(
-              `👋 **สวัสดีครับคุณ ${targetMember.user}!**\n\n` +
+              `**สวัสดีครับคุณ ${targetMember.user}!**\n\n` +
               `> 📊 **สถานะของคุณ**: \` ${statusText} \`\n` +
               `> 👔 **ผู้บันทึก**: \` ${managerName || 'ผู้จัดการ'} \`\n` +
               `> ⏰ **วันเวลาที่บันทึก**: ${nowFormatted}\n\n` +
-              `✨ **ขอบคุณที่ร่วมมือในการเช็คชื่อประจำวันครับ!**`
+              `✨ **ขอบคุณที่ร่วมมือในการเช็คชื่อ!**`
             )
             .setColor(m.status === 'PRESENT' ? 0x10b981 : m.status === 'LATE' ? 0xf1c40f : 0xe74c3c)
             .setThumbnail('attachment://u2m_logo.png')
