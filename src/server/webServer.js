@@ -19,7 +19,8 @@ function startWebServer(client) {
   const PORT = process.env.PORT || 3000;
 
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: '25mb' }));
+  app.use(express.urlencoded({ limit: '25mb', extended: true }));
   app.use(express.static(path.join(__dirname, '../../public')));
 
   // GET /api/members - Open view for everyone, but STRICTLY Manager role only can edit
@@ -56,14 +57,9 @@ function startWebServer(client) {
         if (currentMember) {
           const isManager = MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_') && currentMember.roles.cache.has(MANAGER_ROLE_ID);
           const isLeader = LEADER_ROLE_ID && !LEADER_ROLE_ID.includes('YOUR_') && currentMember.roles.cache.has(LEADER_ROLE_ID);
-          const isVisitor = VISITOR_ROLE_ID && !VISITOR_ROLE_ID.includes('YOUR_') && currentMember.roles.cache.has(VISITOR_ROLE_ID);
 
-          canEdit = Boolean(isManager);
-
-          let userRoleName = 'สมาชิก';
-          if (isLeader) userRoleName = 'หัวหน้า';
-          else if (isManager) userRoleName = 'ผู้จัดการ';
-          else if (isVisitor) userRoleName = 'บุคคลทั่วไป';
+          canEdit = Boolean(isManager || isLeader);
+          const userRoleName = canEdit ? 'manager up2me' : 'up2me';
 
           currentUserData = {
             id: currentMember.id,
@@ -75,28 +71,33 @@ function startWebServer(client) {
         }
       }
 
-      // Default fallback profile if userId parameter was not passed
+      // Default fallback profile if userId parameter was not passed in URL
       if (!currentUserData) {
-        const firstUser = allMembers.find(m => !m.user.bot) || allMembers.first();
-        if (firstUser) {
-          const isManager = MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_') && firstUser.roles.cache.has(MANAGER_ROLE_ID);
-          canEdit = Boolean(isManager);
+        const managerOrLeaderUser = allMembers.find(m => {
+          if (m.user.bot) return false;
+          const isMgr = MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_') && m.roles.cache.has(MANAGER_ROLE_ID);
+          const isLdr = LEADER_ROLE_ID && !LEADER_ROLE_ID.includes('YOUR_') && m.roles.cache.has(LEADER_ROLE_ID);
+          return isMgr || isLdr;
+        }) || allMembers.find(m => !m.user.bot) || allMembers.first();
 
-          let userRoleName = 'สมาชิก';
-          if (isManager) userRoleName = 'ผู้จัดการ';
-          else if (LEADER_ROLE_ID && firstUser.roles.cache.has(LEADER_ROLE_ID)) userRoleName = 'หัวหน้า';
+        if (managerOrLeaderUser) {
+          const isMgr = MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_') && managerOrLeaderUser.roles.cache.has(MANAGER_ROLE_ID);
+          const isLdr = LEADER_ROLE_ID && !LEADER_ROLE_ID.includes('YOUR_') && managerOrLeaderUser.roles.cache.has(LEADER_ROLE_ID);
+
+          canEdit = Boolean(isMgr || isLdr);
+          const userRoleName = canEdit ? 'manager up2me' : 'up2me';
 
           currentUserData = {
-            id: firstUser.id,
-            displayName: firstUser.displayName || firstUser.user.username,
-            avatarUrl: firstUser.user.displayAvatarURL({ dynamic: true, size: 128 }),
+            id: managerOrLeaderUser.id,
+            displayName: managerOrLeaderUser.displayName || managerOrLeaderUser.user.username,
+            avatarUrl: managerOrLeaderUser.user.displayAvatarURL({ dynamic: true, size: 128 }),
             roleName: userRoleName,
             canEdit: canEdit
           };
         }
       }
 
-      // Tracked roles for table
+      // Tracked roles for table (Only Supervisor and Member roles)
       const trackedRoleIds = [LEADER_ROLE_ID, MANAGER_ROLE_ID, MEMBER_ROLE_ID].filter(
         id => id && !id.includes('YOUR_')
       );
@@ -114,16 +115,12 @@ function startWebServer(client) {
           : true;
 
         if (hasTrackedRole) {
-          let roleName = 'สมาชิก';
-          let rolePriority = 3;
+          const isMgr = MANAGER_ROLE_ID && !MANAGER_ROLE_ID.includes('YOUR_') && m.roles.cache.has(MANAGER_ROLE_ID);
+          const isLdr = LEADER_ROLE_ID && !LEADER_ROLE_ID.includes('YOUR_') && m.roles.cache.has(LEADER_ROLE_ID);
+          const hasManagerRole = Boolean(isMgr || isLdr);
 
-          if (LEADER_ROLE_ID && m.roles.cache.has(LEADER_ROLE_ID)) {
-            roleName = 'หัวหน้า';
-            rolePriority = 1;
-          } else if (MANAGER_ROLE_ID && m.roles.cache.has(MANAGER_ROLE_ID)) {
-            roleName = 'ผู้จัดการ';
-            rolePriority = 2;
-          }
+          const roleName = hasManagerRole ? 'manager up2me' : 'up2me';
+          const rolePriority = hasManagerRole ? 1 : 2;
 
           eligibleMembers.push({
             id: m.id,
@@ -136,7 +133,7 @@ function startWebServer(client) {
         }
       });
 
-      // Sort strictly by Role Priority: 1. หัวหน้า -> 2. ผู้จัดการ -> 3. สมาชิก
+      // Sort strictly by Role Priority: 1. manager up2me -> 2. up2me
       eligibleMembers.sort((a, b) => a.rolePriority - b.rolePriority);
 
       // Get or create session
@@ -173,6 +170,20 @@ function startWebServer(client) {
         };
       });
 
+      // Check if session was confirmed today
+      let isTodayConfirmed = false;
+      if (session && session.isConfirmed && session.confirmedAt) {
+        const confirmedDate = new Date(session.confirmedAt).toDateString();
+        const todayDate = new Date().toDateString();
+        if (confirmedDate === todayDate) {
+          isTodayConfirmed = true;
+        } else {
+          // Reset session for a new day if confirmed record was from a previous day
+          session.isConfirmed = false;
+          session.members.forEach(m => { m.status = 'PENDING'; });
+        }
+      }
+
       // 🔔 Get Last Notification Record
       const lastRecord = attendanceStore.getLastRecord(guild.id);
       let lastNotification = null;
@@ -208,6 +219,9 @@ function startWebServer(client) {
         guildIcon: guild.iconURL({ dynamic: true, size: 128 }),
         currentUser: currentUserData,
         members: membersWithStatus,
+        isConfirmedToday: Boolean(isTodayConfirmed),
+        confirmedBy: session ? session.confirmedBy : null,
+        confirmedAt: session ? session.confirmedAt : null,
         lastNotification,
         logChannel: logChannelInfo
       });
@@ -232,6 +246,16 @@ function startWebServer(client) {
         return res.status(400).json({ success: false, error: 'No active session found' });
       }
 
+      // Map previous statuses before applying new attendance data to detect changes
+      const previousStatuses = new Map();
+      if (session && session.members) {
+        session.members.forEach((val, key) => {
+          previousStatuses.set(key, val.status);
+        });
+      }
+
+      const wasAlreadyConfirmed = Boolean(session.isConfirmed && session.confirmedAt && (new Date(session.confirmedAt).toDateString() === new Date().toDateString()));
+
       attendanceData.forEach(item => {
         attendanceStore.updateMemberStatus(guild.id, item.id, item.status);
       });
@@ -251,39 +275,55 @@ function startWebServer(client) {
       let lateCount = 0;
       let absentCount = 0;
 
-      const summaryLines = membersList.map((m, idx) => {
+      membersList.forEach((m) => {
         if (m.status === 'PRESENT') presentCount++;
         if (m.status === 'LATE') lateCount++;
         if (m.status === 'ABSENT') absentCount++;
-
-        const icon = STATUS_ICONS[m.status];
-        return `**#${idx + 1}** | \`[${m.roleName}]\` | ${m.displayName} ➔ **${icon}**`;
       });
 
-      const nowFormatted = `<t:${Math.floor(Date.now() / 1000)}:F>`;
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const nowFormatted = `<t:${nowUnix}:F>`;
+      const todayDateFormatted = `<t:${nowUnix}:d>`;
 
       let dmSuccessCount = 0;
       let dmFailCount = 0;
       const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
 
+      const dmTitle = wasAlreadyConfirmed 
+        ? '📢 [แก้ไขข้อมูล] แจ้งเตือนสถานะการเช็คชื่อ แฟม up2m' 
+        : '📢 แจ้งเตือนสถานะการเช็คชื่อ แฟม up2m';
+
+      const dmHeaderNote = wasAlreadyConfirmed 
+        ? `> ⚠️ **หมายเหตุ**: มีการแก้ไขการเช็คชื่อประจำวันที่ ${todayDateFormatted}\n` 
+        : '';
+
       for (const m of membersList) {
+        const oldStatus = previousStatuses.get(m.id);
+        const isStatusChanged = oldStatus !== m.status;
+
+        // When editing: ONLY send DM to members whose status was actually changed!
+        if (wasAlreadyConfirmed && !isStatusChanged) {
+          continue;
+        }
+
         const targetMember = guild.members.cache.get(m.id);
         if (targetMember) {
           const statusText = STATUS_ICONS[m.status];
           const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
 
           const dmEmbed = new EmbedBuilder()
-            .setTitle('แจ้งเตือนสถานะการเช็คชื่อ แฟม up2m')
+            .setTitle(dmTitle)
             .setDescription(
               `**สวัสดีครับคุณ ${targetMember.user}!**\n\n` +
               `> 📊 **สถานะของคุณ**: \` ${statusText} \`\n` +
-              `> 👔 **ผู้บันทึก**: \` ${managerName || 'ผู้จัดการ'} \`\n` +
-              `> ⏰ **วันเวลาที่บันทึก**: ${nowFormatted}\n\n` +
+              `> 👔 **ผู้บันทึก**: \` ${managerName || 'ผู้จัดการ'} ${wasAlreadyConfirmed ? '(แก้ไขข้อมูล)' : ''} \`\n` +
+              `> ⏰ **เวลาที่บันทึก**: ${nowFormatted}\n` +
+              dmHeaderNote + `\n` +
               `✨ **ขอบคุณที่ร่วมมือในการเช็คชื่อ!**`
             )
-            .setColor(m.status === 'PRESENT' ? 0x10b981 : m.status === 'LATE' ? 0xf1c40f : 0xe74c3c)
+            .setColor(wasAlreadyConfirmed ? 0xf59e0b : (m.status === 'PRESENT' ? 0x10b981 : m.status === 'LATE' ? 0xf1c40f : 0xe74c3c))
             .setThumbnail('attachment://u2m_logo.png')
-            .setFooter({ text: '⚡ ระบบเช็คชื่อ แฟม up2m Notification' })
+            .setFooter({ text: wasAlreadyConfirmed ? '⚡ ระบบเช็คชื่อ แฟม up2m Notification (แก้ไขข้อมูล)' : '⚡ ระบบเช็คชื่อ แฟม up2m Notification' })
             .setTimestamp();
 
           const dmResult = await sendSafeDM(targetMember, { embeds: [dmEmbed], files: [logoAttachment] });
@@ -298,7 +338,8 @@ function startWebServer(client) {
         presentCount,
         lateCount,
         absentCount,
-        membersList
+        membersList,
+        isEdit: wasAlreadyConfirmed
       });
 
       res.json({
@@ -320,7 +361,8 @@ function startWebServer(client) {
   // API Endpoint: Submit Announcement from Web Dashboard
   app.post('/api/announcements/submit', async (req, res) => {
     try {
-      const { guildId, userId, title, message, imageUrl, mentions } = req.body;
+      const { guildId, userId, title, message, imageUrl, imageBase64, mentions, sendDm, dmOnly, announcementType } = req.body;
+      const isDmOnly = Boolean(dmOnly);
 
       if (!title || !message) {
         return res.status(400).json({ success: false, error: 'กรุณากรอกหัวข้อและรายละเอียดข่าวสาร' });
@@ -336,20 +378,34 @@ function startWebServer(client) {
       // Check user permissions
       let isManager = false;
       let authorDisplayName = 'ผู้จัดการ';
+      let currentMember = null;
 
       if (userId) {
-        let currentMember = guild.members.cache.get(userId);
+        currentMember = guild.members.cache.get(userId);
         if (!currentMember) {
           currentMember = await guild.members.fetch(userId).catch(() => null);
         }
-        if (currentMember) {
-          authorDisplayName = currentMember.displayName || currentMember.user.username;
+      }
+
+      // Fallback if userId was not provided (e.g. accessing http://localhost:3000 directly)
+      if (!currentMember) {
+        currentMember = guild.members.cache.find(m => {
+          if (m.user.bot) return false;
           const managerRoleId = rolesConfig.MANAGER_ROLE_ID;
           const leaderRoleId = rolesConfig.LEADER_ROLE_ID;
-          const hasManagerRole = managerRoleId && !managerRoleId.includes('YOUR_') && currentMember.roles.cache.has(managerRoleId);
-          const hasLeaderRole = leaderRoleId && !leaderRoleId.includes('YOUR_') && currentMember.roles.cache.has(leaderRoleId);
-          isManager = Boolean(hasManagerRole || hasLeaderRole || currentMember.permissions.has('Administrator'));
-        }
+          const hasMgr = managerRoleId && !managerRoleId.includes('YOUR_') && m.roles.cache.has(managerRoleId);
+          const hasLdr = leaderRoleId && !leaderRoleId.includes('YOUR_') && m.roles.cache.has(leaderRoleId);
+          return hasMgr || hasLdr;
+        }) || guild.members.cache.find(m => !m.user.bot) || guild.members.cache.first();
+      }
+
+      if (currentMember) {
+        authorDisplayName = currentMember.displayName || currentMember.user.username;
+        const managerRoleId = rolesConfig.MANAGER_ROLE_ID;
+        const leaderRoleId = rolesConfig.LEADER_ROLE_ID;
+        const hasManagerRole = managerRoleId && !managerRoleId.includes('YOUR_') && currentMember.roles.cache.has(managerRoleId);
+        const hasLeaderRole = leaderRoleId && !leaderRoleId.includes('YOUR_') && currentMember.roles.cache.has(leaderRoleId);
+        isManager = Boolean(hasManagerRole || hasLeaderRole);
       }
 
       if (!isManager) {
@@ -388,6 +444,27 @@ function startWebServer(client) {
         });
       }
 
+      // Determine announcement styling & badge based on announcementType
+      let typeLabel = '📢 ประกาศทั่วไป';
+      let embedColor = 0x7c3aed; // Purple for GENERAL
+      let authorHeader = '📢 ประกาศข่าวสาร • U2M Family';
+      let footerTag = '⚡ ระบบประกาศข่าวสาร แฟม up2m';
+      let dmContentPrefix = '📢 **มีประกาศข่าวสารใหม่จากแฟม U2M ถึงคุณโดยเฉพาะ**';
+
+      if (announcementType === 'URGENT') {
+        typeLabel = '🚨 ประกาศเร่งด่วน';
+        embedColor = 0xef4444; // Vibrant Red
+        authorHeader = '🚨 ประกาศเร่งด่วน • U2M Family';
+        footerTag = '⚡ ระบบประกาศข่าวสาร แฟม up2m • Urgent Notice';
+        dmContentPrefix = '🚨 **[ประกาศเร่งด่วน] มีประกาศสำคัญมากถึงคุณโดยเฉพาะ!**';
+      } else if (announcementType === 'EMPHASIS') {
+        typeLabel = '📌 เน้นย้ำ';
+        embedColor = 0xf59e0b; // Amber Gold
+        authorHeader = '📌 ประกาศเน้นย้ำ • U2M Family';
+        footerTag = '⚡ ระบบประกาศข่าวสาร แฟม up2m • Important Notice';
+        dmContentPrefix = '📌 **[เน้นย้ำ] มีประกาศสำคัญโปรดอ่านและปฏิบัติตาม**';
+      }
+
       // Create Announcement Record in Store
       const announcementStore = require('../utils/announcementStore');
       const announcementId = `ann_${Date.now()}`;
@@ -395,6 +472,7 @@ function startWebServer(client) {
         title,
         message,
         imageUrl,
+        announcementType: announcementType || 'GENERAL',
         authorId: userId,
         authorName: authorDisplayName,
         channelId: targetChannel.id
@@ -403,19 +481,25 @@ function startWebServer(client) {
       // Prepare U2M Logo Attachment
       const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
       const filesToSend = [];
+      const unixTime = Math.floor(Date.now() / 1000);
+      const authorMention = userId ? `<@${userId}>` : `\`${authorDisplayName}\``;
 
       const embed = new EmbedBuilder()
-        .setTitle(`📢 ${title}`)
+        .setAuthor({
+          name: authorHeader,
+          iconURL: 'attachment://u2m_logo.png'
+        })
+        .setTitle(title)
         .setDescription(
-          `### 📌 รายละเอียดข่าวสาร\n` +
-          `> ${message.replace(/\n/g, '\n> ')}\n\n` +
-          `──────────────────────────────\n` +
-          `> 👔 **ผู้ประกาศ**: \` ${authorDisplayName} \`\n` +
-          `> ⏰ **เวลาประกาศ**: <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-          `> 👥 **ยอดผู้รับทราบ**: \` 0 คน \``
+          `${message}\n\n` +
+          `────────────────────\n` +
+          `• 🏷️ **ประเภทประกาศ**: \` ${typeLabel} \`\n` +
+          `• 👔 **ผู้ประกาศ**: ${authorMention}\n` +
+          `• 📅 **วันที่**: <t:${unixTime}:d>\n` +
+          `• ⏰ **เวลา**: <t:${unixTime}:t>`
         )
-        .setColor(0x8b5cf6)
-        .setFooter({ text: '⚡ ระบบประกาศข่าวสาร แฟม up2m' })
+        .setColor(embedColor)
+        .setFooter({ text: footerTag })
         .setTimestamp();
 
       if (fs.existsSync(logoPath)) {
@@ -424,39 +508,192 @@ function startWebServer(client) {
         embed.setThumbnail('attachment://u2m_logo.png');
       }
 
-      if (imageUrl && imageUrl.trim()) {
+      // Handle Image: Convert base64 to AttachmentBuilder or use HTTP URL
+      if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image')) {
+        const matches = imageBase64.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+        if (matches) {
+          const ext = matches[1];
+          const buffer = Buffer.from(matches[2], 'base64');
+          const annImageAttachment = new AttachmentBuilder(buffer, { name: `announcement_image.${ext}` });
+          filesToSend.push(annImageAttachment);
+          embed.setImage(`attachment://announcement_image.${ext}`);
+        }
+      } else if (imageUrl && imageUrl.trim()) {
         embed.setImage(imageUrl.trim());
       }
 
-      const btnAck = new ButtonBuilder()
-        .setCustomId(`ack_${announcementId}`)
-        .setLabel('🔔 กดรับทราบข่าวสาร')
-        .setStyle(ButtonStyle.Success);
-
-      const btnList = new ButtonBuilder()
-        .setCustomId(`list_ack_${announcementId}`)
-        .setLabel('📋 ดูรายชื่อผู้รับทราบ')
-        .setStyle(ButtonStyle.Secondary);
-
-      const row = new ActionRowBuilder().addComponents(btnAck, btnList);
-
       const contentPrefix = mentionParts.length > 0 ? mentionParts.join(' ') : null;
 
-      await targetChannel.send({
-        content: contentPrefix,
-        embeds: [embed],
-        components: [row],
-        files: filesToSend
-      });
+      // Send to Discord Channel ONLY if not dmOnly mode
+      if (!isDmOnly && targetChannel) {
+        await targetChannel.send({
+          content: contentPrefix,
+          embeds: [embed],
+          files: filesToSend
+        });
+      }
+
+      let dmSentCount = 0;
+      let dmFailCount = 0;
+
+      if (sendDm || isDmOnly) {
+        try {
+          const teamRoleIds = [
+            rolesConfig.LEADER_ROLE_ID,
+            rolesConfig.MANAGER_ROLE_ID,
+            rolesConfig.MEMBER_ROLE_ID
+          ].filter(rId => rId && !rId.includes('YOUR_'));
+
+          const allMembers = await guild.members.fetch();
+          const teamMembers = allMembers.filter(m => 
+            !m.user.bot && m.roles.cache.some(r => teamRoleIds.includes(r.id))
+          );
+
+          for (const [_, member] of teamMembers) {
+            try {
+              const dmFiles = [];
+              const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
+              if (fs.existsSync(logoPath)) {
+                dmFiles.push(new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' }));
+              }
+              if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image')) {
+                const matches = imageBase64.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+                if (matches) {
+                  const ext = matches[1];
+                  const buffer = Buffer.from(matches[2], 'base64');
+                  dmFiles.push(new AttachmentBuilder(buffer, { name: `announcement_image.${ext}` }));
+                }
+              }
+
+              await member.send({
+                content: dmContentPrefix,
+                embeds: [embed],
+                files: dmFiles
+              });
+              dmSentCount++;
+            } catch (dmErr) {
+              console.log(`[DM Send Failed] Could not send to ${member.user.tag}: ${dmErr.message}`);
+              dmFailCount++;
+            }
+          }
+        } catch (fetchErr) {
+          console.error('[Fetch Members for DM Error]', fetchErr);
+        }
+      }
+
+      let responseMsg = isDmOnly
+        ? `ส่งประกาศแบบ DM ส่วนตัวถึงสมาชิกสำเร็จ ${dmSentCount} คน! (ไม่ได้ส่งลงช่องประกาศ Discord)`
+        : 'ส่งประกาศข่าวสารลง Discord เรียบร้อยแล้ว!';
+
+      if (!isDmOnly && sendDm) {
+        responseMsg += ` (ส่ง DM ถึงสมาชิกในทีมสำเร็จ ${dmSentCount} คน${dmFailCount > 0 ? `, ล้มเหลว ${dmFailCount} คน` : ''})`;
+      }
 
       res.json({
         success: true,
-        message: 'ส่งประกาศข่าวสารลง Discord เรียบร้อยแล้ว!'
+        message: responseMsg
       });
 
     } catch (error) {
       console.error('[Web Announcement Submit Error]', error);
       res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // POST /api/members/send-dm (Send direct DM to individual member)
+  app.post('/api/members/send-dm', async (req, res) => {
+    try {
+      const { guildId, senderUserId, targetUserId, message, imageUrl, imageBase64 } = req.body;
+
+      if (!targetUserId || !message) {
+        return res.status(400).json({ success: false, error: 'กรุณากรอกข้อความที่ต้องการส่ง' });
+      }
+
+      const guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();
+      if (!guild) {
+        return res.status(404).json({ success: false, error: 'Guild not found' });
+      }
+
+      // Check permission: sender must be Supervisor (ผู้ดูแล)
+      let senderMember = senderUserId ? guild.members.cache.get(senderUserId) : null;
+      if (!senderMember && senderUserId) {
+        senderMember = await guild.members.fetch(senderUserId).catch(() => null);
+      }
+
+      let isSupervisor = false;
+      let senderName = 'ผู้ดูแล';
+      if (senderMember) {
+        senderName = senderMember.displayName || senderMember.user.username;
+        const rolesConfig = config.roles;
+        const isMgr = rolesConfig.MANAGER_ROLE_ID && !rolesConfig.MANAGER_ROLE_ID.includes('YOUR_') && senderMember.roles.cache.has(rolesConfig.MANAGER_ROLE_ID);
+        const isLdr = rolesConfig.LEADER_ROLE_ID && !rolesConfig.LEADER_ROLE_ID.includes('YOUR_') && senderMember.roles.cache.has(rolesConfig.LEADER_ROLE_ID);
+        isSupervisor = Boolean(isMgr || isLdr);
+      } else {
+        isSupervisor = true;
+      }
+
+      if (!isSupervisor) {
+        return res.status(403).json({ success: false, error: 'เฉพาะยศผู้ดูแลเท่านั้นที่มีสิทธิ์ส่ง DM รายบุคคล' });
+      }
+
+      if (targetUserId && String(targetUserId).startsWith('mock_')) {
+        return res.json({ success: true, message: 'ส่งข้อความ DM ถึงสมาชิกจำลองสำเร็จแล้ว! (Simulated)' });
+      }
+
+      const targetMember = guild.members.cache.get(targetUserId) || await guild.members.fetch(targetUserId).catch(() => null);
+      if (!targetMember) {
+        return res.status(404).json({ success: false, error: 'ไม่พบสมาชิกปลายทางใน Discord' });
+      }
+
+      const filesToSend = [];
+      const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
+      if (fs.existsSync(logoPath)) {
+        filesToSend.push(new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' }));
+      }
+
+      const unixTime = Math.floor(Date.now() / 1000);
+      const dmEmbed = new EmbedBuilder()
+        .setAuthor({ name: '📩 ข้อความส่วนตัว • U2M Family', iconURL: 'attachment://u2m_logo.png' })
+        .setTitle('ข้อความแจ้งเตือนส่วนตัวจากผู้ดูแล')
+        .setDescription(
+          `**สวัสดีครับคุณ ${targetMember.user}!**\n\n` +
+          `${message}\n\n` +
+          `────────────────────\n` +
+          `• 👔 **ผู้ส่ง**: \` ${senderName} (ผู้ดูแล) \`\n` +
+          `• ⏰ **เวลาที่ส่ง**: <t:${unixTime}:F>`
+        )
+        .setColor(0x7c3aed)
+        .setThumbnail('attachment://u2m_logo.png')
+        .setFooter({ text: '⚡ ระบบส่งข้อความส่วนตัว แฟม up2m' })
+        .setTimestamp();
+
+      if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image')) {
+        const matches = imageBase64.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+        if (matches) {
+          const ext = matches[1];
+          const buffer = Buffer.from(matches[2], 'base64');
+          const imgAttachment = new AttachmentBuilder(buffer, { name: `dm_image.${ext}` });
+          filesToSend.push(imgAttachment);
+          dmEmbed.setImage(`attachment://dm_image.${ext}`);
+        }
+      } else if (imageUrl && imageUrl.trim()) {
+        dmEmbed.setImage(imageUrl.trim());
+      }
+
+      const dmResult = await sendSafeDM(targetMember, {
+        content: `📩 **มีข้อความส่วนตัวจากทีมผู้ดูแลถึงคุณ**`,
+        embeds: [dmEmbed],
+        files: filesToSend
+      });
+
+      if (dmResult.success) {
+        res.json({ success: true, message: `ส่งข้อความ DM ถึง ${targetMember.displayName} เรียบร้อยแล้ว!` });
+      } else {
+        res.status(400).json({ success: false, error: `ไม่สามารถส่ง DM หา ${targetMember.displayName} ได้ (${dmResult.reason || 'ปิดรับ DM หรือบล็อกบอท'})` });
+      }
+    } catch (err) {
+      console.error('[Send Individual DM Error]', err);
+      res.status(500).json({ success: false, error: err.message });
     }
   });
 

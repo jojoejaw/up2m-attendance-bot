@@ -383,23 +383,52 @@ module.exports = {
           });
         }
 
-        // Update the main embed with new acknowledged count
+        // Update the main embed natively using interaction.update() to prevent image popups
         const oldEmbed = interaction.message.embeds[0];
         if (oldEmbed && ann) {
-          const updatedEmbed = EmbedBuilder.from(oldEmbed)
-            .setDescription(
-              oldEmbed.description.replace(
-                /> 👥 \*\*ยอดผู้รับทราบ\*\*: ` \d+ คน `/,
-                `> 👥 **ยอดผู้รับทราบ**: \` ${ann.acknowledgedUsers.size} คน \``
-              )
-            );
-          await interaction.message.edit({ embeds: [updatedEmbed] }).catch(() => {});
-        }
+          const updatedEmbed = EmbedBuilder.from(oldEmbed);
 
-        return await interaction.reply({
-          content: `✅ **คุณ ${interaction.user} ได้กดรับทราบประกาศเรื่อง "${ann ? ann.title : 'ประกาศ'}" เรียบร้อยแล้ว!**`,
-          ephemeral: true
-        });
+          if (oldEmbed.description && oldEmbed.description.includes('ยอดผู้รับทราบ')) {
+            updatedEmbed.setDescription(
+              oldEmbed.description
+                .replace(/• 👥 \*\*ยอดผู้รับทราบ\*\*: ` \d+ คน `/, `• 👥 **ยอดผู้รับทราบ**: \` ${ann.acknowledgedUsers.size} คน \``)
+                .replace(/> 👥 \*\*ยอดผู้รับทราบ\*\*: ` \d+ คน `/, `> 👥 **ยอดผู้รับทราบ**: \` ${ann.acknowledgedUsers.size} คน \``)
+            );
+          }
+
+          if (oldEmbed.fields && oldEmbed.fields.length > 0) {
+            const fields = [...oldEmbed.fields];
+            const ackIdx = fields.findIndex(f => f.name.includes('ยอดผู้รับทราบ'));
+            if (ackIdx !== -1) {
+              fields[ackIdx] = {
+                name: '👥 ยอดผู้รับทราบ',
+                value: `\` 🟢 ${ann.acknowledgedUsers.size} คน \``,
+                inline: true
+              };
+              updatedEmbed.setFields(fields);
+            }
+          }
+
+          // Retain existing message attachments by mapping attachment IDs for Discord REST API v10
+          const retainedAttachments = Array.from(interaction.message.attachments.values()).map(att => ({ id: att.id }));
+
+          // Update embed natively without detaching attachments
+          await interaction.update({
+            embeds: [updatedEmbed],
+            attachments: retainedAttachments
+          }).catch(() => {});
+
+          // Send private confirmation to clicking user
+          return await interaction.followUp({
+            content: `✅ **คุณ ${interaction.user} ได้กดรับทราบประกาศเรื่อง "${ann ? ann.title : 'ประกาศ'}" เรียบร้อยแล้ว!**`,
+            ephemeral: true
+          }).catch(() => {});
+        } else {
+          return await interaction.reply({
+            content: `✅ **คุณ ${interaction.user} ได้กดรับทราบประกาศเรียบร้อยแล้ว!**`,
+            ephemeral: true
+          }).catch(() => {});
+        }
       }
 
       // 📋 Handle View Acknowledged List Button (list_ack_ann_...)

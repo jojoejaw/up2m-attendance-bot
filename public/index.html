@@ -13,7 +13,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=21">
 </head>
 <body>
 
@@ -32,7 +32,6 @@
           </div>
         </div>
 
-        <!-- 5 Sidebar Navigation Menu Items matching image -->
         <nav class="sidebar-menu">
           <a href="#" class="menu-item active" id="navAttendance">
             <i class="fa-solid fa-list-check"></i>
@@ -41,18 +40,6 @@
           <a href="#" class="menu-item" id="navAnnouncement">
             <i class="fa-solid fa-bullhorn"></i>
             <span>ประกาศ</span>
-          </a>
-          <a href="#" class="menu-item">
-            <i class="fa-solid fa-calendar-days"></i>
-            <span>สรุปผลการเช็คชื่อ</span>
-          </a>
-          <a href="#" class="menu-item">
-            <i class="fa-solid fa-user-gear"></i>
-            <span>จัดการยศตำแหน่ง</span>
-          </a>
-          <a href="#" class="menu-item">
-            <i class="fa-solid fa-gear"></i>
-            <span>ตั้งค่าระบบ</span>
           </a>
         </nav>
       </div>
@@ -111,11 +98,14 @@
 
         <!-- Card Footer Action Bar -->
         <div class="card-footer-action">
-          <div class="footer-info-text">
+          <div class="footer-info-text" id="attendanceFooterInfo">
             <i class="fa-solid fa-circle-info"></i> กรุณาเช็คชื่อให้ครบทุกคนก่อนยืนยัน
           </div>
           <div class="footer-right-action">
             <span class="count-text" id="checkedCountText">เช็คแล้ว 0 / 0 คน</span>
+            <button class="btn-cancel-pill" id="btnCancelEditAttendance" style="display: none; background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; padding: 0.6rem 1.1rem; border-radius: 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+              <i class="fa-solid fa-xmark"></i> ยกเลิกการแก้ไข
+            </button>
             <button class="btn-confirm-purple" id="btnSubmitAttendance">
               <i class="fa-solid fa-circle-check"></i> ยืนยันการเช็คชื่อ
             </button>
@@ -125,93 +115,195 @@
       </div>
 
       <!-- Announcement Management View Card -->
-      <div class="main-table-card" id="announcementViewCard" style="display: none;">
-        <!-- Header -->
-        <div class="card-header">
+      <div class="main-table-card ann-card-ref-style" id="announcementViewCard" style="display: none;">
+        <!-- Banner Header -->
+        <div class="card-header-purple-banner">
           <div class="header-title-group">
-            <div class="icon-box-purple">
+            <div class="icon-box-white-glow">
               <i class="fa-solid fa-bullhorn"></i>
             </div>
-            <div class="title-text">
-              <h1>สร้างประกาศข่าวสาร แฟม up2m</h1>
-              <p class="subtitle">
-                <i class="fa-solid fa-paper-plane"></i> ส่งประกาศข่าวสารลง Discord พร้อมการ์ดลายน้ำ U2M ทันที
-              </p>
+            <div class="title-text-white">
+              <h1>สร้างประกาศข่าวสาร แฟน up2m</h1>
+              <p class="subtitle-white">ส่งประกาศข่าวสารลง Discord พร้อมการ์ดลายน้ำ U2M ทันที</p>
             </div>
           </div>
-          <button class="btn-refresh-pill" id="btnBackToAttendance">
-            <i class="fa-solid fa-arrow-left"></i> กลับหน้าเช็คชื่อ
-          </button>
         </div>
 
-        <!-- Announcement Form Container -->
-        <div class="announcement-form-container" style="flex: 1; overflow-y: auto; padding: 0.5rem 0.2rem;">
+        <!-- Announcement Form Content Container -->
+        <div class="announcement-form-container" style="flex: 1; overflow-y: auto; padding: 1.2rem 1.4rem;">
           
           <!-- Notice Box for Permissions -->
           <div id="announcementPermNotice" class="loading-box" style="margin-bottom: 1rem; display: none; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444;">
-            ⚠️ เฉพาะยศ <strong>หัวหน้า</strong> หรือ <strong>ผู้จัดการ</strong> เท่านั้นที่มีสิทธิ์ส่งประกาศข่าวสาร
+            ⚠️ เฉพาะยศ <strong>manager up2me</strong> เท่านั้นที่มีสิทธิ์ส่งประกาศข่าวสาร
           </div>
 
-          <!-- Form Fields -->
-          <div id="announcementFormFields" style="display: flex; flex-direction: column; gap: 1.25rem;">
+          <!-- Form Fields 2-Column Grid (Ref Image Match) -->
+          <div id="announcementFormFields" class="ann-split-container">
             
-            <!-- Field 1: Title -->
-            <div class="form-group">
-              <label style="font-weight: 700; font-size: 0.9rem; color: var(--purple-dark); display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
-                <i class="fa-solid fa-heading" style="color: var(--purple-primary);"></i> หัวข้อประกาศ <span style="color: #ef4444;">*</span>
-              </label>
-              <input type="text" id="webAnnTitle" class="web-input-field" placeholder="เช่น นัดประชุมประจำสัปดาห์ / แจ้งกิจกรรมแฟม U2M">
-            </div>
-
-            <!-- Field 2: Message -->
-            <div class="form-group">
-              <label style="font-weight: 700; font-size: 0.9rem; color: var(--purple-dark); display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
-                <i class="fa-solid fa-align-left" style="color: var(--purple-primary);"></i> รายละเอียดข่าวสาร <span style="color: #ef4444;">*</span>
-              </label>
-              <textarea id="webAnnMessage" class="web-input-field" rows="4" placeholder="พิมพ์เนื้อหาประกาศรายละเอียด วันเวลา นัดหมาย และข้อตกลงที่นี่ (รองรับการขึ้นบรรทัดใหม่)..."></textarea>
-            </div>
-
-            <!-- Field 3: Image URL -->
-            <div class="form-group">
-              <label style="font-weight: 700; font-size: 0.9rem; color: var(--purple-dark); display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
-                <i class="fa-solid fa-image" style="color: var(--purple-primary);"></i> ลิงก์รูปภาพประกอบ (Image URL) <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 400;">(ไม่บังคับ)</span>
-              </label>
-              <input type="url" id="webAnnImageUrl" class="web-input-field" placeholder="วาง URL ลิงก์รูปภาพ เช่น https://i.imgur.com/example.png หรือ ลิงก์รูปจากดิสคอร์ด">
-            </div>
-
-            <!-- Field 4: Multi-Mention Checkboxes -->
-            <div class="form-group">
-              <label style="font-weight: 700; font-size: 0.9rem; color: var(--purple-dark); display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem;">
-                <i class="fa-solid fa-at" style="color: var(--purple-primary);"></i> การแท็กแจ้งเตือนสมาชิกใน Discord <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 400;">(เลือกได้มากกว่า 1 ข้อ)</span>
-              </label>
+            <!-- Left Column: Content & Media -->
+            <div class="ann-left-col">
               
-              <div class="mention-checkbox-grid">
-                <label class="mention-check-card">
-                  <input type="checkbox" value="everyone" class="chk-mention">
-                  <span class="check-title">📢 @everyone</span>
-                  <span class="check-sub">แท็กทุกคนในเซิร์ฟเวอร์</span>
+              <!-- Section Header 1 -->
+              <div class="ann-sec-title">
+                <div class="sec-icon-circle"><i class="fa-solid fa-pen"></i></div>
+                <span>เนื้อหาประกาศ</span>
+              </div>
+
+              <!-- Field 0: Announcement Type Selection -->
+              <div class="ann-input-group">
+                <label class="ann-label">ประเภทประกาศ <span class="text-req">*</span></label>
+                <div class="ann-type-selector-row" id="annTypeSelectorRow">
+                  <div class="ann-type-pill active" data-type="GENERAL">
+                    <i class="fa-solid fa-bullhorn"></i>
+                    <span>📢 ประกาศทั่วไป</span>
+                  </div>
+                  <div class="ann-type-pill" data-type="URGENT">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>🚨 ประกาศเร่งด่วน</span>
+                  </div>
+                  <div class="ann-type-pill" data-type="EMPHASIS">
+                    <i class="fa-solid fa-thumbtack"></i>
+                    <span>📌 เน้นย้ำ</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Field 1: Title -->
+              <div class="ann-input-group">
+                <label class="ann-label">หัวข้อประกาศ <span class="text-req">*</span></label>
+                <div class="input-with-counter">
+                  <input type="text" id="webAnnTitle" class="ann-input-text" maxlength="100" placeholder="เช่น นัดประชุมประจำสัปดาห์ / แจ้งกิจกรรมแฟน U2M">
+                  <span class="input-char-badge" id="titleCharCount">0/100</span>
+                </div>
+              </div>
+
+              <!-- Field 2: Message -->
+              <div class="ann-input-group">
+                <label class="ann-label">รายละเอียดข่าวสาร <span class="text-req">*</span></label>
+                <div class="input-with-counter">
+                  <textarea id="webAnnMessage" class="ann-textarea-text" maxlength="1000" rows="4" placeholder="พิมพ์เนื้อหาประกาศรายละเอียด วันเวลา นัดหมาย&#10;และข้อความอื่นๆ (รองรับการขึ้นบรรทัดใหม่)"></textarea>
+                  <span class="input-char-badge" id="msgCharCount">0/1000</span>
+                </div>
+              </div>
+
+              <!-- Field 3: Image Attachment -->
+              <div class="ann-input-group">
+                <label class="ann-label">
+                  <span class="img-label-icon"><i class="fa-solid fa-image"></i></span> รูปภาพประกอบประกาศ <span class="text-sub-optional">(ไม่บังคับ)</span>
                 </label>
-                <label class="mention-check-card">
-                  <input type="checkbox" value="here" class="chk-mention">
-                  <span class="check-title">🔔 @here</span>
-                  <span class="check-sub">แท็กเฉพาะคนที่ออนไลน์</span>
+
+                <div class="img-dashed-container">
+                  <div class="img-tabs-row">
+                    <button type="button" class="img-tab-btn-pill active" id="tabImgUrl">
+                      <i class="fa-solid fa-link"></i> วางลิงก์ URL
+                    </button>
+                    <button type="button" class="img-tab-btn-pill" id="tabImgFile">
+                      <i class="fa-solid fa-upload"></i> อัปโหลดไฟล์รูป
+                    </button>
+                  </div>
+
+                  <!-- Option A: URL Input -->
+                  <div id="boxImgUrl" style="margin-top: 0.6rem;">
+                    <input type="url" id="webAnnImageUrl" class="ann-input-text-centered" placeholder="วาง URL ลิงก์รูปภาพ เช่น https://i.imgur.com/example.png">
+                    <div class="img-subtext-note">รองรับไฟล์ JPG, PNG ขนาดไม่เกิน 10MB</div>
+                  </div>
+
+                  <!-- Option B: File Upload Input -->
+                  <div id="boxImgFile" style="display: none; margin-top: 0.6rem;">
+                    <input type="file" id="webAnnImageFile" accept="image/*" style="display: none;">
+                    
+                    <div class="file-compact-row" id="fileCompactRow" style="justify-content: center;">
+                      <button type="button" class="btn-select-file-compact" id="btnBrowseFile">
+                        <i class="fa-solid fa-folder-open"></i> คลิกเลือกไฟล์รูปภาพจากเครื่อง...
+                      </button>
+                      <span id="fileNameDisplay" class="file-name-text">ยังไม่ได้เลือกไฟล์</span>
+                    </div>
+
+                    <div id="compactPreviewBox" class="compact-preview-box" style="display: none; justify-content: center;">
+                      <img id="imagePreview" src="" class="compact-img-thumb" alt="Preview">
+                      <div class="compact-file-info">
+                        <span id="compactFileName" class="compact-file-title"></span>
+                        <span id="compactFileSize" class="compact-file-size"></span>
+                      </div>
+                      <button type="button" id="btnRemoveImage" class="btn-remove-img" title="ลบรูปภาพ">
+                        <i class="fa-solid fa-xmark"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Right Column: Mentions & DM -->
+            <div class="ann-right-col">
+              
+              <!-- Section Header 2 -->
+              <div class="ann-sec-title">
+                <div class="sec-icon-circle"><i class="fa-solid fa-at"></i></div>
+                <span>การแจ้งเตือนสมาชิกใน Discord</span>
+              </div>
+
+              <!-- Mention List Vertical Card -->
+              <div class="mention-vertical-card">
+                <label class="mention-row-item">
+                  <div class="m-row-left">
+                    <span class="m-emoji">📢</span>
+                    <div class="m-text">
+                      <span class="m-title">@everyone</span>
+                      <span class="m-sub">ทุกคนในเซิร์ฟเวอร์</span>
+                    </div>
+                  </div>
+                  <input type="checkbox" value="@everyone" class="chk-mention m-check">
                 </label>
-                <label class="mention-check-card">
-                  <input type="checkbox" value="manager" class="chk-mention">
-                  <span class="check-title">👔 @ผู้จัดการ</span>
-                  <span class="check-sub">แท็กยศผู้จัดการ</span>
+
+                <label class="mention-row-item">
+                  <div class="m-row-left">
+                    <span class="m-emoji">🔔</span>
+                    <div class="m-text">
+                      <span class="m-title">@here</span>
+                      <span class="m-sub">คนที่ออนไลน์</span>
+                    </div>
+                  </div>
+                  <input type="checkbox" value="here" class="chk-mention m-check">
                 </label>
-                <label class="mention-check-card">
-                  <input type="checkbox" value="leader" class="chk-mention">
-                  <span class="check-title">👑 @หัวหน้า</span>
-                  <span class="check-sub">แท็กยศหัวหน้า</span>
+
+                <label class="mention-row-item">
+                  <div class="m-row-left">
+                    <span class="m-emoji">👑</span>
+                    <div class="m-text">
+                      <span class="m-title">@manager up2me</span>
+                      <span class="m-sub">ยศ manager up2me</span>
+                    </div>
+                  </div>
+                  <input type="checkbox" value="manager" class="chk-mention m-check">
                 </label>
-                <label class="mention-check-card">
-                  <input type="checkbox" value="member" class="chk-mention">
-                  <span class="check-title">👤 @สมาชิก</span>
-                  <span class="check-sub">แท็กยศสมาชิก</span>
+
+                <label class="mention-row-item">
+                  <div class="m-row-left">
+                    <span class="m-emoji">👤</span>
+                    <div class="m-text">
+                      <span class="m-title">@up2me</span>
+                      <span class="m-sub">ยศ up2me ทั้งหมด</span>
+                    </div>
+                  </div>
+                  <input type="checkbox" value="member" class="chk-mention m-check">
                 </label>
               </div>
+              <!-- Field 5: DM Option Switch -->
+              <div class="form-group-compact" style="margin-top: 0.35rem;">
+                <div class="dm-option-card-sleek">
+                  <label class="dm-check-label" for="chkSendDm">
+                    <div class="dm-info">
+                      <span class="dm-title"><i class="fa-solid fa-paper-plane text-purple"></i> ส่งข้อความส่วนตัว (DM) ถึงสมาชิกในทีม</span>
+                      <span class="dm-sub">ส่งประกาศเข้า DM สมาชิกทีมรายบุคคล (ข้ามบุคคลทั่วไป)</span>
+                    </div>
+                    <input type="checkbox" id="chkSendDm" class="dm-checkbox">
+                  </label>
+                </div>
+              </div>
+
             </div>
 
           </div>
@@ -222,9 +314,12 @@
           <div class="footer-info-text">
             <i class="fa-solid fa-circle-info"></i> ประกาศจะถูกส่งไปยังช่อง Discord พร้อมการ์ดลายน้ำ U2M ทันที
           </div>
-          <div class="footer-right-action">
-            <button class="btn-confirm-purple" id="btnSubmitWebAnnouncement" style="padding: 0.75rem 1.6rem;">
+          <div class="footer-right-action" style="display: flex; align-items: center; gap: 0.75rem;">
+            <button class="btn-confirm-purple" id="btnSubmitWebAnnouncement" style="padding: 0.75rem 1.4rem;">
               <i class="fa-solid fa-paper-plane"></i> ส่งประกาศลง Discord ทันที
+            </button>
+            <button class="btn-confirm-blue" id="btnSubmitDmAnnouncement" style="padding: 0.75rem 1.4rem;">
+              <i class="fa-solid fa-paper-plane"></i> ส่งประกาศแบบ DM ส่วนตัว
             </button>
           </div>
         </div>
@@ -268,64 +363,16 @@
     <!-- RIGHT SIDEBAR (STATUS & SUMMARY) -->
     <aside class="right-sidebar">
       
-      <!-- Status Badge Card (Dark Gradient with Clipboard Illustration) -->
-      <div class="status-banner-card">
-        <div class="status-banner-left">
-          <div class="status-banner-title">สถานะการเช็คชื่อ</div>
-          <h2 id="bannerStatusText">รอยืนยัน</h2>
-          <p class="status-banner-sub">กรุณาเช็คชื่อให้ครบทุกคนก่อนยืนยันการบันทึก</p>
+      <!-- Discord Members with Roles Sidebar Card -->
+      <div class="summary-card team-members-sidebar-card">
+        <div class="team-members-header">
+          <h3><i class="fa-solid fa-users text-purple"></i> สมาชิกมียศใน Discord</h3>
+          <span class="member-count-pill" id="sidebarTeamCount">0 คน</span>
         </div>
-        <div class="status-banner-illustration">
-          <div class="clipboard-icon-wrapper">
-            <i class="fa-solid fa-clipboard-list"></i>
-            <div class="clipboard-check-badge"><i class="fa-solid fa-check"></i></div>
+        <div class="sidebar-member-list" id="sidebarMemberList">
+          <div style="text-align: center; color: var(--text-muted); padding: 1rem; font-size: 0.82rem;">
+            <i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดรายชื่อสมาชิก...
           </div>
-        </div>
-      </div>
-
-      <!-- Summary Metric Card -->
-      <div class="summary-card">
-        <h3><i class="fa-solid fa-chart-simple text-purple"></i> สรุปข้อมูลวันนี้</h3>
-        <div class="summary-list">
-          <div class="summary-item">
-            <span class="summary-label"><i class="fa-solid fa-circle dot-gray"></i> สมาชิกทั้งหมด</span>
-            <span class="summary-count" id="valTotal">0 คน</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label"><i class="fa-solid fa-circle dot-gray"></i> รอการเช็คชื่อ</span>
-            <span class="summary-count" id="valPending">0 คน</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label"><i class="fa-solid fa-circle dot-green"></i> มา</span>
-            <span class="summary-count" id="valPresent">0 คน</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label"><i class="fa-solid fa-circle dot-yellow"></i> สาย</span>
-            <span class="summary-count" id="valLate">0 คน</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label"><i class="fa-solid fa-circle dot-red"></i> ขาด</span>
-            <span class="summary-count" id="valAbsent">0 คน</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Actions Card with Lightning Icon -->
-      <div class="quick-actions-card">
-        <h3><i class="fa-solid fa-bolt text-purple"></i> การดำเนินการด่วน</h3>
-        <div class="actions-list">
-          <button class="action-btn" id="btnCheckAllPresent">
-            <span><i class="fa-regular fa-circle-check text-green"></i> เช็คชื่อทั้งหมดเป็น 'มา'</span>
-            <i class="fa-solid fa-chevron-right"></i>
-          </button>
-          <button class="action-btn" id="btnResetAllStatus">
-            <span><i class="fa-solid fa-rotate-left text-purple"></i> รีเซ็ตสถานะทั้งหมด</span>
-            <i class="fa-solid fa-chevron-right"></i>
-          </button>
-          <button class="action-btn" id="btnUpdateMemberList">
-            <span><i class="fa-solid fa-user-group text-blue"></i> อัปเดตรายชื่อสมาชิก</span>
-            <i class="fa-solid fa-chevron-right"></i>
-          </button>
         </div>
       </div>
 
@@ -355,6 +402,84 @@
       <h2>บันทึกการเช็คชื่อสำเร็จ!</h2>
       <p id="modalMessage">ระบบได้ส่ง DM แจ้งเตือนไปยังสมาชิกทุกคน และบันทึกประวัติลง Log Channel เรียบร้อยแล้ว</p>
       <button class="btn-primary" id="btnCloseModal">ตกลง</button>
+    </div>
+  </div>
+
+  <!-- Direct DM Individual Member Modal (100% Match Reference Screenshot) -->
+  <div class="modal-backdrop" id="directDmModal">
+    <div class="modal-card dm-modal-card-ref">
+      
+      <!-- Header -->
+      <div class="dm-header-ref">
+        <div class="dm-user-profile-ref">
+          <img id="dmTargetAvatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="User Avatar" class="dm-avatar-ref">
+          <div class="dm-user-text-ref">
+            <span class="dm-sub-title-ref">ส่งข้อความส่วนตัว (DM) หา</span>
+            <span class="dm-main-title-ref" id="dmTargetName">.bumbimmumu (@.bumbimmumu)</span>
+          </div>
+        </div>
+        <button type="button" class="dm-close-btn-ref" id="btnCloseDmModal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Body Content -->
+      <div class="dm-body-ref">
+        
+        <!-- Field 1: Textarea with Counter -->
+        <div class="dm-field-group">
+          <label class="dm-label-ref">ข้อความส่วนตัว <span class="dm-req-star">*</span></label>
+          <div class="dm-textarea-box-blue">
+            <textarea id="dmMessageText" class="dm-textarea-ref" rows="4" maxlength="1000" placeholder="พิมพ์ข้อความที่ต้องการส่ง DM ถึงสมาชิกท่านนี้..."></textarea>
+            <div class="dm-char-counter-ref" id="dmMsgCharCount">0/1000</div>
+          </div>
+        </div>
+
+        <!-- Field 2: Image Attachment with Dashed Box -->
+        <div class="dm-field-group" style="margin-top: 1rem;">
+          <label class="dm-label-ref">
+            <i class="fa-solid fa-image text-blue"></i> รูปภาพประกอบ <span class="dm-sub-optional">(ไม่บังคับ)</span>
+          </label>
+          
+          <div class="dm-dashed-container-ref">
+            <div class="dm-tabs-row-ref">
+              <button type="button" class="dm-tab-pill active" id="tabDmImgUrl">
+                <i class="fa-solid fa-link"></i> วางลิงก์ URL
+              </button>
+              <button type="button" class="dm-btn-blue-select" id="btnBrowseDmFile">
+                <i class="fa-solid fa-folder-open"></i> เลือกไฟล์รูปภาพจากเครื่อง...
+              </button>
+            </div>
+
+            <!-- Option A: URL Input Box -->
+            <div id="boxDmImgUrl" style="margin-top: 0.5rem;">
+              <input type="url" id="dmImageUrl" class="dm-input-text-ref" placeholder="วาง URL ลิงก์รูปภาพ เช่น https://i.imgur.com/example.png">
+            </div>
+
+            <!-- Option B: File Input Box -->
+            <div id="boxDmImgFile" style="display: none; margin-top: 0.5rem;">
+              <input type="file" id="dmImageFile" accept="image/*" style="display: none;">
+              <div id="dmFilePreviewBox" class="dm-preview-box-ref" style="display: none;">
+                <img id="dmImgPreview" src="" alt="Preview" class="dm-thumb-ref">
+                <span id="dmFileName" class="dm-file-name-ref"></span>
+                <button type="button" id="btnRemoveDmImg" class="dm-remove-btn-ref" title="ลบรูปภาพ">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Buttons -->
+      <div class="dm-footer-ref">
+        <button type="button" class="dm-btn-cancel-ref" id="btnCancelDmModal">ยกเลิก</button>
+        <button type="button" class="dm-btn-send-ref" id="btnSendDirectDm">
+          <i class="fa-solid fa-paper-plane"></i> ส่งข้อความ DM ทันที
+        </button>
+      </div>
+
     </div>
   </div>
 

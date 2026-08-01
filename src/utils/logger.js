@@ -13,7 +13,7 @@ async function getChannel(client, channelId) {
 /**
  * 📢 1. Send Daily Attendance Summary Log to Channel 2 (SUMMARY_LOG_CHANNEL_ID)
  */
-async function sendAttendanceSummaryLog(client, { managerName, totalMembers, presentCount, lateCount, absentCount, membersList }) {
+async function sendAttendanceSummaryLog(client, { managerName, totalMembers, presentCount, lateCount, absentCount, membersList, isEdit = false }) {
   const summaryChannelId = config.channels.SUMMARY_LOG_CHANNEL_ID || config.channels.LOG_CHANNEL_ID;
   const channel = await getChannel(client, summaryChannelId);
 
@@ -25,9 +25,8 @@ async function sendAttendanceSummaryLog(client, { managerName, totalMembers, pre
   };
 
   const ROLE_PRIORITY = {
-    'หัวหน้า': 1,
-    'ผู้จัดการ': 2,
-    'สมาชิก': 3
+    'manager up2me': 1,
+    'up2me': 2
   };
 
   const sortedMembers = [...membersList].sort((a, b) => {
@@ -36,23 +35,33 @@ async function sendAttendanceSummaryLog(client, { managerName, totalMembers, pre
     return prioA - prioB;
   });
 
-  // Build full list of all members with their check-in status (Leader -> Manager -> Member)
+  // Build full list of all members with their check-in status (manager up2me -> up2me)
   const memberListFormatted = sortedMembers.map((m, idx) => {
     const icon = STATUS_ICONS[m.status] || '⚪ ยังไม่ระบุ';
     const paddedIndex = String(idx + 1).padStart(2, '0');
-    return `\`${paddedIndex}.\` \`[ ${m.roleName || 'สมาชิก'} ]\` \`${m.displayName}\` ➔ \`${icon}\``;
+    return `\`${paddedIndex}.\` \`[ ${m.roleName || 'up2me'} ]\` \`${m.displayName}\` ➔ \`${icon}\``;
   }).join('\n');
 
-  const nowFormatted = `<t:${Math.floor(Date.now() / 1000)}:F>`;
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const nowFormatted = `<t:${nowUnix}:F>`;
+  const todayDateFormatted = `<t:${nowUnix}:d>`;
   const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
   const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
 
+  const titleText = isEdit 
+    ? '📋 [แก้ไขข้อมูล] รายงานการเช็คชื่อ แฟม up2m ประจำวัน'
+    : '📋 รายงานการเช็คชื่อ แฟม up2m ประจำวัน';
+
+  const managerLabel = isEdit ? 'ผู้ปรับปรุงแก้ไข' : 'ผู้บันทึก';
+  const editNote = isEdit ? `> ⚠️ **หมายเหตุ**: มีการแก้ไขการเช็คชื่อประจำวันที่ ${todayDateFormatted}\n` : '';
+
   const embed = new EmbedBuilder()
-    .setTitle('📋 รายงานการเช็คชื่อ แฟม up2m ประจำวัน')
+    .setTitle(titleText)
     .setDescription(
-      `> **ผู้บันทึก**: **${managerName}**\n` +
-      `>  **เวลาที่บันทึก**: ${nowFormatted}\n\n` +
-      ` **สรุปภาพรวมการเช็คชื่อ**:\n` +
+      `> **${managerLabel}**: **${managerName}**\n` +
+      `> ⏰ **เวลาที่บันทึก**: ${nowFormatted}\n` +
+      editNote + `\n` +
+      `📊 **สรุปภาพรวมการเช็คชื่อ**:\n` +
       `> • สมาชิกทั้งหมด: \` ${totalMembers} คน \`\n` +
       `> • 🟢 มา: \` ${presentCount} คน \`\n` +
       `> • 🟡 มาสาย: \` ${lateCount} คน \`\n` +
@@ -61,15 +70,15 @@ async function sendAttendanceSummaryLog(client, { managerName, totalMembers, pre
       `📄 **รายชื่อสมาชิกและสถานะการเช็คชื่อ**:\n\n` +
       memberListFormatted
     )
-    .setColor(0x7c3aed)
+    .setColor(isEdit ? 0xf59e0b : 0x7c3aed)
     .setThumbnail('attachment://u2m_logo.png')
     .setTimestamp()
-    .setFooter({ text: '⚡ ระบบเช็คชื่อ แฟม up2m Summary Report' });
+    .setFooter({ text: isEdit ? '⚡ ระบบเช็คชื่อ แฟม up2m Summary Report (แก้ไขข้อมูล)' : '⚡ ระบบเช็คชื่อ แฟม up2m Summary Report' });
 
   if (channel) {
     await channel.send({ embeds: [embed], files: [logoAttachment] }).catch(err => console.error('[Summary Log Error]', err.message));
   } else {
-    console.log(`[Summary Log Simulated] Manager ${managerName} confirmed attendance for ${totalMembers} members.`);
+    console.log(`[Summary Log Simulated] Manager ${managerName} confirmed attendance (isEdit: ${isEdit}) for ${totalMembers} members.`);
   }
 }
 
