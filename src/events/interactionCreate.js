@@ -9,7 +9,8 @@ const STATUS_ICONS = {
   PENDING: '⚪ ยังไม่ได้เช็ค',
   PRESENT: '🟢 มา',
   LATE: '🟡 มาสาย',
-  ABSENT: '🔴 ขาด'
+  ABSENT: '🔴 ขาด',
+  LEAVE: '🏖️ ลา'
 };
 
 // Helper: Render Step 4 Mention Selection Window

@@ -1,0 +1,34 @@
+{
+  "1407630307796062248": [
+    {
+      "id": "leave_1785699850836_622",
+      "guildId": "1407630307796062248",
+      "userId": "1262492717741510817",
+      "displayName": ".bumbimmumu",
+      "username": ".bumbimmumu",
+      "avatarUrl": "https://cdn.discordapp.com/avatars/1262492717741510817/48ebc4d4e9a55cf6842c9f08d376d050.webp?size=128",
+      "roleName": "manager up2me",
+      "date": "2026-08-04",
+      "isFullDay": true,
+      "startTime": "09:00",
+      "endTime": "12:00",
+      "reason": "ไม่ได้ระบุเหตุผล",
+      "createdAt": "2026-08-02T19:44:10.836Z"
+    },
+    {
+      "id": "leave_1785699859637_732",
+      "guildId": "1407630307796062248",
+      "userId": "1262492717741510817",
+      "displayName": ".bumbimmumu",
+      "username": ".bumbimmumu",
+      "avatarUrl": "https://cdn.discordapp.com/avatars/1262492717741510817/48ebc4d4e9a55cf6842c9f08d376d050.webp?size=128",
+      "roleName": "manager up2me",
+      "date": "2026-08-03",
+      "isFullDay": true,
+      "startTime": "09:00",
+      "endTime": "12:00",
+      "reason": "ไม่ได้ระบุเหตุผล",
+      "createdAt": "2026-08-02T19:44:19.637Z"
+    }
+  ]
+}

@@ -201,6 +201,7 @@ function renderMemberRows() {
       roleIcon = 'fa-solid fa-shield-halved';
     }
 
+    const isOnLeave = m.isOnLeave || m.status === 'LEAVE';
     const isPresent = m.status === 'PRESENT';
     const isLate = m.status === 'LATE';
     const isAbsent = m.status === 'ABSENT';
@@ -208,8 +209,36 @@ function renderMemberRows() {
     const displayName = m.displayName || m.username || 'สมาชิก';
     const username = m.username || 'user';
 
-    const isEditable = canEdit && (!isConfirmedToday || isEditMode);
-    const disabledAttr = isEditable ? '' : 'disabled style="cursor: not-allowed; opacity: 0.85;"';
+    let statusColContent = '';
+    if (isOnLeave) {
+      const isTemp = m.leaveRecord && !m.leaveRecord.isFullDay;
+      const leaveLabel = isTemp
+        ? `<i class="fa-solid fa-clock"></i> ลา (${m.leaveRecord.startTime || '09:00'} - ${m.leaveRecord.endTime || '12:00'} น.)`
+        : `<i class="fa-solid fa-umbrella-beach"></i> ลา`;
+
+      statusColContent = `
+        <div class="leave-status-locked-badge" title="สมาชิกท่านนี้แจ้งขอลาหยุดเรียบร้อยแล้ว ไม่สามารถเช็คชื่อได้">
+          ${leaveLabel}
+        </div>
+      `;
+    } else {
+      const isEditable = canEdit && (!isConfirmedToday || isEditMode);
+      const disabledAttr = isEditable ? '' : 'disabled style="cursor: not-allowed; opacity: 0.85;"';
+
+      statusColContent = `
+        <div class="status-buttons-row">
+          <button class="status-btn-pill btn-status-present ${isPresent ? 'active' : ''}" data-user="${m.id}" data-status="PRESENT" ${disabledAttr}>
+            <i class="fa-solid fa-circle-check"></i> มา
+          </button>
+          <button class="status-btn-pill btn-status-late ${isLate ? 'active' : ''}" data-user="${m.id}" data-status="LATE" ${disabledAttr}>
+            <i class="fa-solid fa-clock"></i> สาย
+          </button>
+          <button class="status-btn-pill btn-status-absent ${isAbsent ? 'active' : ''}" data-user="${m.id}" data-status="ABSENT" ${disabledAttr}>
+            <i class="fa-solid fa-circle-xmark"></i> ขาด
+          </button>
+        </div>
+      `;
+    }
 
     row.innerHTML = `
       <!-- Col 1: Index Number -->
@@ -236,17 +265,9 @@ function renderMemberRows() {
         </div>
       </div>
 
-      <!-- Col 4: Status Buttons Row -->
-      <div class="status-buttons-row">
-        <button class="status-btn-pill btn-status-present ${isPresent ? 'active' : ''}" data-user="${m.id}" data-status="PRESENT" ${disabledAttr}>
-          <i class="fa-solid fa-circle-check"></i> มา
-        </button>
-        <button class="status-btn-pill btn-status-late ${isLate ? 'active' : ''}" data-user="${m.id}" data-status="LATE" ${disabledAttr}>
-          <i class="fa-solid fa-clock"></i> สาย
-        </button>
-        <button class="status-btn-pill btn-status-absent ${isAbsent ? 'active' : ''}" data-user="${m.id}" data-status="ABSENT" ${disabledAttr}>
-          <i class="fa-solid fa-circle-xmark"></i> ขาด
-        </button>
+      <!-- Col 4: Status / Leave Badge (Center Aligned) -->
+      <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
+        ${statusColContent}
       </div>
     `;
 
@@ -423,9 +444,11 @@ function updateMetrics() {
   let late = 0;
   let absent = 0;
   let pending = 0;
+  let leave = 0;
 
   membersData.forEach(m => {
-    if (m.status === 'PRESENT') present++;
+    if (m.status === 'LEAVE' || m.isOnLeave) leave++;
+    else if (m.status === 'PRESENT') present++;
     else if (m.status === 'LATE') late++;
     else if (m.status === 'ABSENT') absent++;
     else pending++;
@@ -437,11 +460,23 @@ function updateMetrics() {
   if (valLate) valLate.textContent = `${late} คน`;
   if (valAbsent) valAbsent.textContent = `${absent} คน`;
 
-  const checkedCount = total - pending;
-  if (checkedCountText) checkedCountText.textContent = `เช็คแล้ว ${checkedCount} / ${total} คน`;
+  const nonLeaveTotal = total - leave;
+  const checkedCount = present + late + absent;
+
+  if (checkedCountText) {
+    if (nonLeaveTotal > 0) {
+      checkedCountText.textContent = `เช็คแล้ว ${checkedCount} / ${nonLeaveTotal} คน`;
+    } else {
+      checkedCountText.textContent = `สมาชิกทุกคนแจ้งลาหยุด (${leave} คน)`;
+    }
+  }
 
   if (bannerStatusText) {
-    if (pending === 0 && total > 0) {
+    if (isConfirmedToday) {
+      bannerStatusText.textContent = 'บันทึกเรียบร้อย';
+    } else if (nonLeaveTotal === 0 && leave > 0) {
+      bannerStatusText.textContent = 'ลาหยุดทุกคน';
+    } else if (pending === 0 && checkedCount > 0) {
       bannerStatusText.textContent = 'เช็คชื่อครบแล้ว';
     } else {
       bannerStatusText.textContent = 'รอยืนยัน';
@@ -504,8 +539,15 @@ if (btnSubmitAttendance) {
 
     const managerName = currentUser ? currentUser.displayName : 'ผู้จัดการ';
 
-    // Validation: Check if anyone is still PENDING
-    const unchecked = membersData.filter(m => m.status === 'PENDING' || !m.status);
+    // Validation 1: Check if 0 members have been checked (Present/Late/Absent)
+    const checkedMembers = membersData.filter(m => m.status === 'PRESENT' || m.status === 'LATE' || m.status === 'ABSENT');
+    if (checkedMembers.length === 0) {
+      showToast('⚠️ ยังไม่มีการเช็คชื่อสมาชิก (มา/สาย/ขาด) ในวันนี้ ไม่สามารถยืนยันได้', 'warning');
+      return;
+    }
+
+    // Validation 2: Check if anyone non-leave is still PENDING
+    const unchecked = membersData.filter(m => (m.status === 'PENDING' || !m.status) && !m.isOnLeave);
     if (unchecked.length > 0) {
       const uncheckedNames = unchecked.map(m => m.displayName || m.username).join(', ');
       showToast(`⚠️ กรุณาเช็คชื่อให้ครบทุกคนก่อนยืนยัน (ยังไม่ได้เช็คอีก ${unchecked.length} คน: ${uncheckedNames})`, 'error');
@@ -591,26 +633,42 @@ if (btnRefresh) {
 
 // Nav Tab Switching Logic
 const navAttendance = document.getElementById('navAttendance');
+const navLeave = document.getElementById('navLeave');
 const navAnnouncement = document.getElementById('navAnnouncement');
 const attendanceMainViewCard = document.getElementById('attendanceMainViewCard');
+const leaveMainViewCard = document.getElementById('leaveMainViewCard');
 const announcementViewCard = document.getElementById('announcementViewCard');
 const btnBackToAttendance = document.getElementById('btnBackToAttendance');
 
 function switchToTab(tabName) {
   if (tabName === 'announcement') {
     if (attendanceMainViewCard) attendanceMainViewCard.style.setProperty('display', 'none', 'important');
+    if (leaveMainViewCard) leaveMainViewCard.style.setProperty('display', 'none', 'important');
     if (announcementViewCard) announcementViewCard.style.setProperty('display', 'flex', 'important');
     if (navAttendance) navAttendance.classList.remove('active');
+    if (navLeave) navLeave.classList.remove('active');
     if (navAnnouncement) navAnnouncement.classList.add('active');
+  } else if (tabName === 'leave') {
+    if (attendanceMainViewCard) attendanceMainViewCard.style.setProperty('display', 'none', 'important');
+    if (announcementViewCard) announcementViewCard.style.setProperty('display', 'none', 'important');
+    if (leaveMainViewCard) leaveMainViewCard.style.setProperty('display', 'flex', 'important');
+    if (navAttendance) navAttendance.classList.remove('active');
+    if (navAnnouncement) navAnnouncement.classList.remove('active');
+    if (navLeave) navLeave.classList.add('active');
+    if (typeof setLeaveFilter === 'function') setLeaveFilter('today');
+    fetchLeavesData();
   } else {
     if (attendanceMainViewCard) attendanceMainViewCard.style.setProperty('display', 'flex', 'important');
     if (announcementViewCard) announcementViewCard.style.setProperty('display', 'none', 'important');
+    if (leaveMainViewCard) leaveMainViewCard.style.setProperty('display', 'none', 'important');
     if (navAttendance) navAttendance.classList.add('active');
+    if (navLeave) navLeave.classList.remove('active');
     if (navAnnouncement) navAnnouncement.classList.remove('active');
   }
 }
 
 if (navAttendance) navAttendance.addEventListener('click', (e) => { e.preventDefault(); switchToTab('attendance'); });
+if (navLeave) navLeave.addEventListener('click', (e) => { e.preventDefault(); switchToTab('leave'); });
 if (navAnnouncement) navAnnouncement.addEventListener('click', (e) => { e.preventDefault(); switchToTab('announcement'); });
 if (btnBackToAttendance) btnBackToAttendance.addEventListener('click', () => switchToTab('attendance'));
 
@@ -983,6 +1041,380 @@ if (btnSendDirectDm) {
     } finally {
       btnSendDirectDm.disabled = false;
       btnSendDirectDm.innerHTML = '<i class="fa-solid fa-paper-plane"></i> ส่งข้อความ DM ทันที';
+    }
+  });
+}
+
+function formatDateDMY(dateStr) {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day}/${month}/${year}`;
+  }
+  return dateStr;
+}
+
+// Leave Requests Management Logic
+const btnOpenLeaveModal = document.getElementById('btnOpenLeaveModal');
+const leaveModal = document.getElementById('leaveModal');
+const btnCloseLeaveModal = document.getElementById('btnCloseLeaveModal');
+const btnCancelLeaveModal = document.getElementById('btnCancelLeaveModal');
+const btnSubmitLeave = document.getElementById('btnSubmitLeave');
+
+const leaveDate = document.getElementById('leaveDate');
+const btnTypeFullDay = document.getElementById('btnTypeFullDay');
+const btnTypeTemp = document.getElementById('btnTypeTemp');
+const timeRangeRow = document.getElementById('timeRangeRow');
+const leaveStartTime = document.getElementById('leaveStartTime');
+const leaveEndTime = document.getElementById('leaveEndTime');
+const leaveReason = document.getElementById('leaveReason');
+const leaveRowsList = document.getElementById('leaveRowsList');
+
+let selectedLeaveDuration = 'fullday';
+
+const leaveDateDisplay = document.getElementById('leaveDateDisplay');
+const leaveDateWrapper = document.getElementById('leaveDateWrapper');
+
+function getTodayDateString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Set Date input min to today's date in YYYY-MM-DD
+function initLeaveDateInput() {
+  if (leaveDate) {
+    const todayISO = getTodayDateString();
+    leaveDate.min = todayISO;
+    leaveDate.value = todayISO;
+    if (leaveDateDisplay) {
+      leaveDateDisplay.value = formatDateDMY(todayISO);
+    }
+  }
+}
+
+if (leaveDateWrapper) {
+  leaveDateWrapper.addEventListener('click', () => {
+    if (leaveDate) {
+      if (typeof leaveDate.showPicker === 'function') {
+        leaveDate.showPicker();
+      } else {
+        leaveDate.click();
+      }
+    }
+  });
+}
+
+if (leaveDate) {
+  leaveDate.addEventListener('change', function () {
+    if (leaveDateDisplay) {
+      leaveDateDisplay.value = formatDateDMY(this.value);
+    }
+  });
+}
+
+// Toggle Duration Type Pill (Full Day vs Temporary)
+if (btnTypeFullDay && btnTypeTemp) {
+  btnTypeFullDay.addEventListener('click', () => {
+    selectedLeaveDuration = 'fullday';
+    btnTypeFullDay.classList.add('active');
+    btnTypeTemp.classList.remove('active');
+    if (timeRangeRow) timeRangeRow.style.setProperty('display', 'none', 'important');
+  });
+
+  btnTypeTemp.addEventListener('click', () => {
+    selectedLeaveDuration = 'temp';
+    btnTypeTemp.classList.add('active');
+    btnTypeFullDay.classList.remove('active');
+    if (timeRangeRow) timeRangeRow.style.setProperty('display', 'block', 'important');
+  });
+}
+
+function openLeaveModal() {
+  initLeaveDateInput();
+  if (leaveReason) leaveReason.value = '';
+  selectedLeaveDuration = 'fullday';
+  if (btnTypeFullDay) btnTypeFullDay.classList.add('active');
+  if (btnTypeTemp) btnTypeTemp.classList.remove('active');
+  if (timeRangeRow) timeRangeRow.style.setProperty('display', 'none', 'important');
+  if (leaveModal) {
+    leaveModal.style.setProperty('display', 'flex', 'important');
+    leaveModal.classList.add('active');
+  }
+}
+
+function closeLeaveModal() {
+  if (leaveModal) {
+    leaveModal.style.setProperty('display', 'none', 'important');
+    leaveModal.classList.remove('active');
+  }
+}
+
+if (btnOpenLeaveModal) btnOpenLeaveModal.addEventListener('click', openLeaveModal);
+if (btnCloseLeaveModal) btnCloseLeaveModal.addEventListener('click', closeLeaveModal);
+if (btnCancelLeaveModal) btnCancelLeaveModal.addEventListener('click', closeLeaveModal);
+
+let allLeavesList = [];
+let currentLeaveFilter = 'today';
+
+const filterLeaveAll = document.getElementById('filterLeaveAll');
+const filterLeaveToday = document.getElementById('filterLeaveToday');
+const filterLeaveUpcoming = document.getElementById('filterLeaveUpcoming');
+
+const countLeaveAll = document.getElementById('countLeaveAll');
+const countLeaveToday = document.getElementById('countLeaveToday');
+const countLeaveUpcoming = document.getElementById('countLeaveUpcoming');
+
+function setLeaveFilter(filterType) {
+  currentLeaveFilter = filterType;
+  [filterLeaveAll, filterLeaveToday, filterLeaveUpcoming].forEach(btn => {
+    if (btn) {
+      if (btn.dataset.filter === filterType) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+  });
+  applyLeaveFilter();
+}
+
+if (filterLeaveAll) filterLeaveAll.addEventListener('click', () => setLeaveFilter('all'));
+if (filterLeaveToday) filterLeaveToday.addEventListener('click', () => setLeaveFilter('today'));
+if (filterLeaveUpcoming) filterLeaveUpcoming.addEventListener('click', () => setLeaveFilter('upcoming'));
+
+function getThaiDayOfWeek(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+    return `(${days[d.getDay()]})`;
+  }
+  return '';
+}
+
+function applyLeaveFilter() {
+  const todayStr = getTodayDateString();
+
+  const todayList = allLeavesList.filter(l => l.date === todayStr);
+  const upcomingList = allLeavesList.filter(l => l.date > todayStr);
+  const pastList = allLeavesList.filter(l => l.date < todayStr);
+
+  if (countLeaveAll) countLeaveAll.textContent = allLeavesList.length;
+  if (countLeaveToday) countLeaveToday.textContent = todayList.length;
+  if (countLeaveUpcoming) countLeaveUpcoming.textContent = upcomingList.length;
+
+  // Update 4 Summary Stat Cards
+  const statLeaveTotal = document.getElementById('statLeaveTotal');
+  const statLeaveToday = document.getElementById('statLeaveToday');
+  const statLeaveUpcoming = document.getElementById('statLeaveUpcoming');
+  const statLeaveDone = document.getElementById('statLeaveDone');
+
+  if (statLeaveTotal) statLeaveTotal.textContent = allLeavesList.length;
+  if (statLeaveToday) statLeaveToday.textContent = todayList.length;
+  if (statLeaveUpcoming) statLeaveUpcoming.textContent = upcomingList.length;
+  if (statLeaveDone) statLeaveDone.textContent = pastList.length;
+
+  let filtered = allLeavesList;
+  if (currentLeaveFilter === 'today') {
+    filtered = todayList;
+  } else if (currentLeaveFilter === 'upcoming') {
+    filtered = upcomingList;
+  }
+
+  // Update Footer Count Summary
+  const leaveFooterCountText = document.getElementById('leaveFooterCountText');
+  if (leaveFooterCountText) {
+    leaveFooterCountText.textContent = `แสดง ${filtered.length} จาก ${allLeavesList.length} รายการ`;
+  }
+
+  renderLeaveRows(filtered);
+}
+
+// Fetch & Render Leave Requests
+async function fetchLeavesData() {
+  if (!leaveRowsList) return;
+  try {
+    const res = await fetch(`/api/leaves?guildId=${guildId}`);
+    const data = await res.json();
+    if (data.success) {
+      allLeavesList = data.leaves || [];
+      applyLeaveFilter();
+    } else {
+      leaveRowsList.innerHTML = `<div class="loading-box" style="color: #ef4444;">❌ เกิดข้อผิดพลาดในการโหลดข้อมูลการลา</div>`;
+    }
+  } catch (err) {
+    console.error('[Fetch Leaves Error]', err);
+    if (leaveRowsList) {
+      leaveRowsList.innerHTML = `<div class="loading-box" style="color: #ef4444;">❌ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้</div>`;
+    }
+  }
+}
+
+function renderLeaveRows(leaves) {
+  if (!leaveRowsList) return;
+  if (leaves.length === 0) {
+    leaveRowsList.innerHTML = `
+      <div class="loading-box" style="color: #94a3b8; font-weight: 500;">
+        <i class="fa-solid fa-calendar-check" style="font-size: 1.5rem; margin-bottom: 0.5rem; color: #cbd5e1; display: block;"></i>
+        ยังไม่มีประวัติการยื่นใบลาในขณะนี้
+      </div>
+    `;
+    return;
+  }
+
+  const currentUserId = currentUser ? currentUser.id : null;
+
+  leaveRowsList.innerHTML = leaves.map((l, index) => {
+    const durationBadge = l.isFullDay
+      ? `<span class="leave-badge-fullday"><i class="fa-solid fa-sun"></i> ลาทั้งวัน</span>`
+      : `<span class="leave-badge-temp"><i class="fa-solid fa-clock"></i> ${l.startTime || '09:00'} - ${l.endTime || '12:00'} น.</span>`;
+
+    const isOwnerOrManager = (l.userId === currentUserId) || canEdit;
+    const actionBtn = isOwnerOrManager
+      ? `<button type="button" class="btn-cancel-leave-row" data-leaveid="${l.id}" title="ยกเลิกใบลาหยุดนี้"><i class="fa-solid fa-trash-can"></i> ยกเลิก</button>`
+      : `<span style="font-size: 0.75rem; color: #94a3b8;">-</span>`;
+
+    return `
+      <div class="leave-row-item">
+        <div style="font-weight: 700; color: #8b5cf6; font-size: 0.88rem;">${String(index + 1).padStart(2, '0')}</div>
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <img src="${l.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width: 34px; height: 34px; border-radius: 50%; object-fit: cover;">
+          <div>
+            <div style="font-weight: 700; font-size: 0.88rem; color: #1e1b4b;">${l.displayName || l.username}</div>
+            <div style="font-size: 0.73rem; color: #64748b;">@${l.username}</div>
+          </div>
+        </div>
+        <div style="font-weight: 600; font-size: 0.85rem; color: #334155;">
+          <i class="fa-regular fa-calendar" style="color: #8b5cf6; margin-right: 0.25rem;"></i> ${formatDateDMY(l.date)}
+          <div style="font-size: 0.74rem; color: #64748b; font-weight: 500; margin-left: 1.35rem; margin-top: 0.15rem;">${getThaiDayOfWeek(l.date)}</div>
+        </div>
+        <div style="text-align: center;">${durationBadge}</div>
+        <div style="text-align: center;">${actionBtn}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Attach Cancel Click Handlers (Open Custom Modal)
+  document.querySelectorAll('.btn-cancel-leave-row').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const leaveId = this.getAttribute('data-leaveid');
+      if (!leaveId) return;
+      openCustomConfirmCancelModal(leaveId);
+    });
+  });
+}
+
+// 🎨 Custom Confirmation Modal Event Listeners
+let pendingCancelLeaveId = null;
+
+function openCustomConfirmCancelModal(leaveId) {
+  pendingCancelLeaveId = leaveId;
+  const modal = document.getElementById('confirmCancelModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+  }
+}
+
+function closeCustomConfirmCancelModal() {
+  pendingCancelLeaveId = null;
+  const modal = document.getElementById('confirmCancelModal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+}
+
+const btnConfirmCancelLeaveNo = document.getElementById('btnConfirmCancelLeaveNo');
+const btnConfirmCancelLeaveYes = document.getElementById('btnConfirmCancelLeaveYes');
+
+if (btnConfirmCancelLeaveNo) {
+  btnConfirmCancelLeaveNo.addEventListener('click', closeCustomConfirmCancelModal);
+}
+
+if (btnConfirmCancelLeaveYes) {
+  btnConfirmCancelLeaveYes.addEventListener('click', async () => {
+    if (!pendingCancelLeaveId) return;
+    const leaveId = pendingCancelLeaveId;
+    closeCustomConfirmCancelModal();
+
+    try {
+      const res = await fetch('/api/leaves/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guildId: guildId,
+          leaveId: leaveId,
+          userId: currentUser ? currentUser.id : null
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast('🗑️ ยกเลิกใบลาเรียบร้อยแล้ว!', 'success');
+        fetchLeavesData();
+        fetchMembersData();
+      } else {
+        showToast(data.error || 'เกิดข้อผิดพลาดในการยกเลิกใบลา', 'error');
+      }
+    } catch (err) {
+      console.error('[Cancel Leave Error]', err);
+      showToast('❌ ไม่สามารถยกเลิกใบลาได้', 'error');
+    }
+  });
+}
+
+// Submit Leave Handler
+if (btnSubmitLeave) {
+  btnSubmitLeave.addEventListener('click', async () => {
+    const dateVal = leaveDate ? leaveDate.value : '';
+    const isFullDay = selectedLeaveDuration === 'fullday';
+    const startTimeVal = leaveStartTime ? leaveStartTime.value : '09:00';
+    const endTimeVal = leaveEndTime ? leaveEndTime.value : '12:00';
+    const reasonVal = (leaveReason && leaveReason.value.trim()) ? leaveReason.value.trim() : 'ไม่ได้ระบุเหตุผล';
+
+    if (!dateVal) {
+      showToast('⚠️ กรุณาเลือกวันที่ต้องการแจ้งลา', 'error');
+      return;
+    }
+
+    try {
+      btnSubmitLeave.disabled = true;
+      btnSubmitLeave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งใบลา...';
+
+      const res = await fetch('/api/leaves/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guildId,
+          userId: currentUser ? currentUser.id : null,
+          date: dateVal,
+          isFullDay,
+          startTime: startTimeVal,
+          endTime: endTimeVal,
+          reason: reasonVal
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast('🎉 ยื่นใบลาเรียบร้อยแล้ว และส่งแจ้งเตือนเข้า Discord แล้ว!', 'success');
+        closeLeaveModal();
+        fetchLeavesData();
+      } else {
+        showToast(`❌ ${data.error || 'เกิดข้อผิดพลาดในการยื่นใบลา'}`, 'error');
+      }
+    } catch (err) {
+      console.error('[Submit Leave Error]', err);
+      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+    } finally {
+      btnSubmitLeave.disabled = false;
+      btnSubmitLeave.innerHTML = '<i class="fa-solid fa-paper-plane"></i> ยืนยันยื่นใบลา';
     }
   });
 }

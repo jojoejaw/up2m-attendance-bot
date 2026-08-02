@@ -13,7 +13,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=54">
 </head>
 <body>
 
@@ -36,6 +36,10 @@
           <a href="#" class="menu-item active" id="navAttendance">
             <i class="fa-solid fa-list-check"></i>
             <span>ตารางเช็คชื่อ</span>
+          </a>
+          <a href="#" class="menu-item" id="navLeave">
+            <i class="fa-solid fa-calendar-minus"></i>
+            <span>ลา</span>
           </a>
           <a href="#" class="menu-item" id="navAnnouncement">
             <i class="fa-solid fa-bullhorn"></i>
@@ -112,6 +116,68 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Leave Requests View Card -->
+      <div class="main-table-card leave-card-ref-style" id="leaveMainViewCard" style="display: none;">
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="header-title-group">
+            <div class="icon-box-purple">
+              <i class="fa-solid fa-calendar-minus"></i>
+            </div>
+            <div class="title-text">
+              <h1>ตารางการแจ้งลา แฟม up2m</h1>
+              <p class="subtitle">
+                <i class="fa-regular fa-calendar-check"></i> ประวัติรายการแจ้งขอลาหยุดของสมาชิกทั้งหมด
+              </p>
+            </div>
+          </div>
+          <button class="btn-confirm-purple" id="btnOpenLeaveModal" style="padding: 0.65rem 1.25rem; font-size: 0.88rem;">
+            <i class="fa-solid fa-plus"></i> ยื่นใบลา
+          </button>
+        </div>
+
+        <!-- Leave Filter Tabs (All / Today / Upcoming) -->
+        <div class="leave-filter-bar" id="leaveFilterBar">
+          <button type="button" class="leave-filter-tab" id="filterLeaveAll" data-filter="all">
+            <i class="fa-solid fa-list-ul"></i>
+            <span>ทั้งหมด</span>
+            <span class="filter-count-badge" id="countLeaveAll">0</span>
+          </button>
+          <button type="button" class="leave-filter-tab active" id="filterLeaveToday" data-filter="today">
+            <i class="fa-solid fa-calendar-day"></i>
+            <span>วันนี้</span>
+            <span class="filter-count-badge" id="countLeaveToday">0</span>
+          </button>
+          <button type="button" class="leave-filter-tab" id="filterLeaveUpcoming" data-filter="upcoming">
+            <i class="fa-solid fa-calendar-week"></i>
+            <span>กำลังจะมาถึง</span>
+            <span class="filter-count-badge" id="countLeaveUpcoming">0</span>
+          </button>
+        </div>
+
+        <!-- 5-Column Table Header for Leave Requests -->
+        <div class="table-column-headers leave-column-headers">
+          <div class="col-head col-id">#</div>
+          <div class="col-head col-name">รายชื่อสมาชิก</div>
+          <div class="col-head col-date">วันที่แจ้งลา</div>
+          <div class="col-head col-duration col-center">รูปแบบการลา</div>
+          <div class="col-head col-action" style="text-align: center;">จัดการ</div>
+        </div>
+
+        <!-- Leave Rows Container -->
+        <div class="member-rows-list" id="leaveRowsList">
+          <div class="loading-box">
+            <i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดรายการแจ้งลา...
+          </div>
+        </div>
+
+        <!-- 📄 Table Footer Count Summary -->
+        <div class="leave-table-footer">
+          <div class="leave-footer-icon"><i class="fa-regular fa-calendar-check"></i></div>
+          <span class="leave-footer-count" id="leaveFooterCountText">แสดง 0 จาก 0 รายการ</span>
+        </div>
       </div>
 
       <!-- Announcement Management View Card -->
@@ -480,6 +546,148 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Leave Request Form Modal Popup -->
+  <div id="leaveModal" class="modal-backdrop-ref" style="display: none;">
+    <div class="modal-card-ref leave-modal-box">
+      <!-- Modal Header -->
+      <div class="modal-header-ref">
+        <div class="modal-title-group-ref">
+          <div class="modal-icon-glow-ref">
+            <i class="fa-solid fa-file-circle-check"></i>
+          </div>
+          <div>
+            <h2>ฟอร์มยื่นใบลาหยุด</h2>
+            <p class="modal-sub-ref">กรอกวันเวลาและรายละเอียดเหตุผลที่ต้องการแจ้งขอลา</p>
+          </div>
+        </div>
+        <button type="button" class="dm-close-btn-ref btn-close-modal-ref" id="btnCloseLeaveModal" title="ปิดหน้าต่าง">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body-ref">
+        
+        <!-- Field 1: Leave Date (Formatted DD/MM/YYYY Display) -->
+        <div class="dm-field-group">
+          <label class="dm-label-ref">
+            <i class="fa-solid fa-calendar-days text-purple"></i> เลือกวันที่ต้องการแจ้งลา <span class="dm-req-star">*</span>
+          </label>
+          <div style="position: relative; cursor: pointer;" id="leaveDateWrapper">
+            <input type="text" id="leaveDateDisplay" class="dm-input-text-ref" readonly placeholder="วัน/เดือน/ปี (DD/MM/YYYY)" style="padding-right: 2.8rem; cursor: pointer; background: #ffffff;">
+            <i class="fa-solid fa-calendar-days" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: #8b5cf6; font-size: 1.1rem; pointer-events: none;"></i>
+            <input type="date" id="leaveDate" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+          </div>
+          <span class="img-subtext-note" style="margin-top: 0.35rem; display: block; color: #64748b; font-size: 0.75rem;">เลือกระบุวันที่ต้องการแจ้งลา (เริ่มจากวันปัจจุบันเป็นต้นไป)</span>
+        </div>
+
+        <!-- Field 2: Leave Duration Type (Push Buttons with Active Gradient Highlight) -->
+        <div class="dm-field-group" style="margin-top: 1.1rem;">
+          <label class="dm-label-ref">
+            <i class="fa-solid fa-clock text-purple"></i> รูปแบบการลา <span class="dm-req-star">*</span>
+          </label>
+          <div class="leave-btn-segmented-bar" id="leaveDurationTypeRow">
+            <button type="button" class="btn-leave-toggle active" id="btnTypeFullDay" data-duration="fullday">
+              <span>☀️ ลาทั้งวัน</span>
+            </button>
+            <button type="button" class="btn-leave-toggle" id="btnTypeTemp" data-duration="temp">
+              <span>⏰ ลาบางช่วงเวลา</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Field 3: Time Range Picker (Show only when 'temp' is selected) -->
+        <div class="time-range-reserved-slot" id="timeRangeSlot">
+          <div id="timeRangeRow" class="dm-field-group" style="display: none; margin-top: 0.75rem;">
+            <label class="dm-label-ref">
+              <i class="fa-solid fa-business-time text-purple"></i> เลือกช่วงเวลาที่ต้องการลา (เวลาไทย 24 ชม.) <span class="dm-req-star">*</span>
+            </label>
+            <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem 0.85rem; border-radius: 16px; border: 1px solid #e2e8f0;">
+              <div style="flex: 1;">
+                <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; display: block; margin-bottom: 0.25rem;">⏰ เวลาเริ่ม</span>
+                <select id="leaveStartTime" class="dm-input-text-ref" style="padding: 0.5rem 0.8rem; border-radius: 10px;">
+                  <option value="08:00">08:00 น.</option>
+                  <option value="09:00" selected>09:00 น.</option>
+                  <option value="10:00">10:00 น.</option>
+                  <option value="11:00">11:00 น.</option>
+                  <option value="12:00">12:00 น.</option>
+                  <option value="13:00">13:00 น.</option>
+                  <option value="14:00">14:00 น.</option>
+                  <option value="15:00">15:00 น.</option>
+                  <option value="16:00">16:00 น.</option>
+                  <option value="17:00">17:00 น.</option>
+                  <option value="18:00">18:00 น.</option>
+                  <option value="19:00">19:00 น.</option>
+                  <option value="20:00">20:00 น.</option>
+                </select>
+              </div>
+              <span style="font-weight: 700; color: #94a3b8; margin-top: 1rem; font-size: 0.85rem;">ถึง</span>
+              <div style="flex: 1;">
+                <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; display: block; margin-bottom: 0.25rem;">⏰ เวลาสิ้นสุด</span>
+                <select id="leaveEndTime" class="dm-input-text-ref" style="padding: 0.5rem 0.8rem; border-radius: 10px;">
+                  <option value="10:00">10:00 น.</option>
+                  <option value="11:00">11:00 น.</option>
+                  <option value="12:00" selected>12:00 น.</option>
+                  <option value="13:00">13:00 น.</option>
+                  <option value="14:00">14:00 น.</option>
+                  <option value="15:00">15:00 น.</option>
+                  <option value="16:00">16:00 น.</option>
+                  <option value="17:00">17:00 น.</option>
+                  <option value="18:00">18:00 น.</option>
+                  <option value="19:00">19:00 น.</option>
+                  <option value="20:00">20:00 น.</option>
+                  <option value="21:00">21:00 น.</option>
+                  <option value="22:00">22:00 น.</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Field 4: Leave Reason Textarea (Optional) -->
+        <div class="dm-field-group" style="margin-top: 1.1rem;">
+          <label class="dm-label-ref">
+            <i class="fa-solid fa-pen-to-square text-purple"></i> เหตุผลการลา <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 400;">(ไม่บังคับกรอก)</span>
+          </label>
+          <textarea id="leaveReason" class="dm-textarea-ref" rows="3" placeholder="ระบุเหตุผลการลา เช่น ติดภารกิจส่วนตัว / ไปพบแพทย์ (ไม่ระบุก็ได้)"></textarea>
+        </div>
+
+      </div>
+
+      <!-- Footer Action -->
+      <div class="dm-footer-ref" style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+        <button type="button" class="dm-btn-cancel-ref" id="btnCancelLeaveModal">ยกเลิก</button>
+        <button type="button" class="btn-confirm-purple" id="btnSubmitLeave" style="padding: 0.7rem 1.6rem; font-size: 0.9rem; border-radius: 14px;">
+          <i class="fa-solid fa-paper-plane"></i> ยืนยันยื่นใบลา
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 🎨 Custom Confirmation Modal Popup for Leave Cancellation -->
+  <div id="confirmCancelModal" class="modal-backdrop-ref" style="display: none;">
+    <div class="modal-card-ref confirm-modal-box">
+      <div class="confirm-icon-glow">
+        <i class="fa-solid fa-trash-can"></i>
+      </div>
+      <h3 class="confirm-modal-title">ยืนยันการยกเลิกใบลา</h3>
+      <p class="confirm-modal-desc">
+        คุณต้องการยกเลิกใบลาหยุดนี้ใช่หรือไม่?<br>
+        <span style="font-size: 0.8rem; color: #94a3b8;">เมื่อยกเลิกแล้ว รายการลาหยุดจะถูกลบออกจากระบบทันที</span>
+      </p>
+      
+      <div class="confirm-modal-actions">
+        <button type="button" class="btn-confirm-cancel-no" id="btnConfirmCancelLeaveNo">
+          ย้อนกลับ
+        </button>
+        <button type="button" class="btn-confirm-cancel-yes" id="btnConfirmCancelLeaveYes">
+          <i class="fa-solid fa-trash-can"></i> ยืนยันยกเลิกใบลา
+        </button>
+      </div>
     </div>
   </div>
 

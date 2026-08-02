@@ -21,7 +21,8 @@ async function sendAttendanceSummaryLog(client, { managerName, totalMembers, pre
   const STATUS_ICONS = {
     PRESENT: '🟢 มา',
     LATE: '🟡 มาสาย',
-    ABSENT: '🔴 ขาด'
+    ABSENT: '🔴 ขาด',
+    LEAVE: '🏖️ ลา'
   };
 
   const ROLE_PRIORITY = {
@@ -55,6 +56,11 @@ async function sendAttendanceSummaryLog(client, { managerName, totalMembers, pre
   const managerLabel = isEdit ? 'ผู้ปรับปรุงแก้ไข' : 'ผู้บันทึก';
   const editNote = isEdit ? `> ⚠️ **หมายเหตุ**: มีการแก้ไขการเช็คชื่อประจำวันที่ ${todayDateFormatted}\n` : '';
 
+  let leaveCount = 0;
+  sortedMembers.forEach(m => {
+    if (m.status === 'LEAVE') leaveCount++;
+  });
+
   const embed = new EmbedBuilder()
     .setTitle(titleText)
     .setDescription(
@@ -65,7 +71,8 @@ async function sendAttendanceSummaryLog(client, { managerName, totalMembers, pre
       `> • สมาชิกทั้งหมด: \` ${totalMembers} คน \`\n` +
       `> • 🟢 มา: \` ${presentCount} คน \`\n` +
       `> • 🟡 มาสาย: \` ${lateCount} คน \`\n` +
-      `> • 🔴 ขาด: \` ${absentCount} คน \`\n\n` +
+      `> • 🔴 ขาด: \` ${absentCount} คน \`\n` +
+      `> • 🏖️ ลา: \` ${leaveCount} คน \`\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `📄 **รายชื่อสมาชิกและสถานะการเช็คชื่อ**:\n\n` +
       memberListFormatted
@@ -116,7 +123,57 @@ async function sendRoleAuditLog(client, { targetMember, role, action = 'ADDED', 
   }
 }
 
+function formatDateDMY(dateStr) {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day}/${month}/${year}`;
+  }
+  return dateStr;
+}
+
+/**
+ * 📄 3. Send Leave Request Log to Channel (ID: 1533520647831945417)
+ */
+async function sendLeaveLogToDiscord(client, leaveRecord) {
+  const leaveChannelId = config.channels.LEAVE_CHANNEL_ID || '1533520647831945417';
+  const channel = await getChannel(client, leaveChannelId);
+
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
+  const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
+
+  const formattedDate = formatDateDMY(leaveRecord.date);
+  const durationText = leaveRecord.isFullDay
+    ? '☀️ ลาทั้งวัน'
+    : `⏰ ลาชั่วคราว (${leaveRecord.startTime} - ${leaveRecord.endTime} น.)`;
+
+  const embed = new EmbedBuilder()
+    .setAuthor({ name: '📄 แจ้งเตือนการยื่นใบลา • U2M Family', iconURL: 'attachment://u2m_logo.png' })
+    .setTitle(`📢 สมาชิกแจ้งขอลาหยุด (${formattedDate})`)
+    .setDescription(
+      `> 👤 **สมาชิก**: **${leaveRecord.displayName}** (\`@${leaveRecord.username}\`)\n` +
+      `> 🛡️ **ยศตำแหน่ง**: \` ${leaveRecord.roleName || 'up2me'} \`\n` +
+      `> 📅 **วันที่แจ้งลา**: \` ${formattedDate} \`\n` +
+      `> ⏳ **รูปแบบการลา**: \` ${durationText} \`\n` +
+      `> 📝 **เหตุผลการลา**: ${leaveRecord.reason}\n\n` +
+      `> ⏰ **เวลายื่นเรื่อง**: <t:${nowUnix}:F>`
+    )
+    .setColor(0x8b5cf6)
+    .setThumbnail(leaveRecord.avatarUrl || 'attachment://u2m_logo.png')
+    .setTimestamp()
+    .setFooter({ text: '⚡ ระบบแจ้งลา แฟม up2m Dashboard' });
+
+  if (channel) {
+    await channel.send({ embeds: [embed], files: [logoAttachment] }).catch(err => console.error('[Leave Log Error]', err.message));
+  } else {
+    console.log(`[Leave Log Simulated] ${leaveRecord.displayName} -> ${leaveRecord.date} (${durationText})`);
+  }
+}
+
 module.exports = {
   sendAttendanceSummaryLog,
-  sendRoleAuditLog
+  sendRoleAuditLog,
+  sendLeaveLogToDiscord
 };

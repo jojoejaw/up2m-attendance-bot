@@ -4,15 +4,27 @@ const path = require('path');
 const fs = require('fs');
 const { EmbedBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const attendanceStore = require('../utils/attendanceStore');
+const leaveStore = require('../utils/leaveStore');
 const { sendSafeDM } = require('../utils/dmSender');
-const { sendAttendanceSummaryLog } = require('../utils/logger');
+const { sendAttendanceSummaryLog, sendLeaveLogToDiscord } = require('../utils/logger');
 const config = require('../config.json');
 
 const STATUS_ICONS = {
   PRESENT: '🟢 มา',
   LATE: '🟡 มาสาย',
-  ABSENT: '🔴 ขาด'
+  ABSENT: '🔴 ขาด',
+  LEAVE: '🏖️ ลา'
 };
+
+function getThailandDateString() {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(new Date());
+}
 
 function startWebServer(client) {
   const app = express();
@@ -172,11 +184,24 @@ function startWebServer(client) {
         });
       }
 
+      const todayStr = getThailandDateString();
+      const todayLeaves = leaveStore.getLeaves(guild.id).filter(l => l.date === todayStr);
+
       const membersWithStatus = eligibleMembers.map(m => {
         const storedData = session.members.get(m.id);
+        const leaveRecord = todayLeaves.find(l => l.userId === m.id);
+
+        let status = storedData ? storedData.status : 'PENDING';
+        if (leaveRecord) {
+          status = 'LEAVE';
+          if (storedData) storedData.status = 'LEAVE';
+        }
+
         return {
           ...m,
-          status: storedData ? storedData.status : 'PENDING'
+          status,
+          isOnLeave: Boolean(leaveRecord),
+          leaveRecord: leaveRecord || null
         };
       });
 
@@ -238,6 +263,144 @@ function startWebServer(client) {
     } catch (error) {
       console.error('[Web API Error]', error);
       res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // GET /api/leaves - Fetch all leave records for guild
+  app.get('/api/leaves', async (req, res) => {
+    const { guildId } = req.query;
+    let guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();
+    if (!guild) {
+      return res.status(404).json({ success: false, error: 'ไม่พบเซิร์ฟเวอร์ Discord' });
+    }
+
+    try {
+      const leaves = leaveStore.getLeaves(guild.id);
+      res.json({ success: true, leaves });
+    } catch (err) {
+      console.error('[Get Leaves API Error]', err.message);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/leaves/submit - Submit a new leave request
+  app.post('/api/leaves/submit', async (req, res) => {
+    const { guildId, userId, date, isFullDay, startTime, endTime, reason } = req.body;
+
+    let guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();
+    if (!guild) {
+      return res.status(404).json({ success: false, error: 'ไม่พบเซิร์ฟเวอร์ Discord' });
+    }
+
+    if (!date) {
+      return res.status(400).json({ success: false, error: 'กรุณาเลือกวันที่ต้องการแจ้งลา' });
+    }
+
+    if (!isFullDay && (!startTime || !endTime)) {
+      return res.status(400).json({ success: false, error: 'กรุณาเลือกช่วงเวลาเริ่มต้นและสิ้นสุดกรณีลาชั่วคราว' });
+    }
+
+    try {
+      let requestingMember = null;
+      if (userId) {
+        requestingMember = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+      }
+      if (!requestingMember) {
+        requestingMember = guild.members.cache.find(m => !m.user.bot) || guild.members.cache.first();
+      }
+
+      const rolesConfig = config.roles;
+      const isMgr = rolesConfig.MANAGER_ROLE_ID && !rolesConfig.MANAGER_ROLE_ID.includes('YOUR_') && requestingMember.roles.cache.has(rolesConfig.MANAGER_ROLE_ID);
+      const isLdr = rolesConfig.LEADER_ROLE_ID && !rolesConfig.LEADER_ROLE_ID.includes('YOUR_') && requestingMember.roles.cache.has(rolesConfig.LEADER_ROLE_ID);
+      const roleName = (isMgr || isLdr) ? 'manager up2me' : 'up2me';
+
+      const leaveData = {
+        userId: requestingMember ? requestingMember.id : 'unknown',
+        displayName: requestingMember ? (requestingMember.displayName || requestingMember.user.username) : 'สมาชิก',
+        username: requestingMember ? requestingMember.user.username : 'member',
+        avatarUrl: requestingMember ? requestingMember.user.displayAvatarURL({ dynamic: true, size: 128 }) : 'https://cdn.discordapp.com/embed/avatars/0.png',
+        roleName: roleName,
+        date: date,
+        isFullDay: Boolean(isFullDay),
+        startTime: startTime || null,
+        endTime: endTime || null,
+        reason: (reason && reason.trim()) ? reason.trim() : 'ไม่ได้ระบุเหตุผล'
+      };
+
+      // Add to store
+      const newRecord = leaveStore.addLeave(guild.id, leaveData);
+
+      // If leave is for today, update active attendance session immediately
+      const todayStr = getThailandDateString();
+      if (date === todayStr) {
+        const session = attendanceStore.getSession(guild.id);
+        if (session && session.members && session.members.has(newRecord.userId)) {
+          session.members.get(newRecord.userId).status = 'LEAVE';
+        }
+      }
+
+      // Send Embed log to Discord Channel (ID: 1533520647831945417)
+      await sendLeaveLogToDiscord(client, newRecord).catch(err => console.error('[Leave Log Send Error]', err));
+
+      res.json({ success: true, message: 'ยื่นใบลาเรียบร้อยแล้ว!', record: newRecord });
+    } catch (err) {
+      console.error('[Submit Leave Error]', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/leaves/cancel - Cancel/Delete a leave request
+  app.post('/api/leaves/cancel', async (req, res) => {
+    const { guildId, leaveId, userId } = req.body;
+
+    let guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();
+    if (!guild) {
+      return res.status(404).json({ success: false, error: 'ไม่พบเซิร์ฟเวอร์ Discord' });
+    }
+
+    if (!leaveId || !userId) {
+      return res.status(400).json({ success: false, error: 'ข้อมูลไม่ครบถ้วน' });
+    }
+
+    try {
+      const leaves = leaveStore.getLeaves(guild.id);
+      const targetLeave = leaves.find(l => l.id === leaveId);
+
+      if (!targetLeave) {
+        return res.status(404).json({ success: false, error: 'ไม่พบรายการใบลานี้' });
+      }
+
+      // Check permission: only the leave owner or manager can cancel
+      const rolesConfig = config.roles;
+      let requestingMember = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+      const isMgr = requestingMember && rolesConfig.MANAGER_ROLE_ID && !rolesConfig.MANAGER_ROLE_ID.includes('YOUR_') && requestingMember.roles.cache.has(rolesConfig.MANAGER_ROLE_ID);
+      const isLdr = requestingMember && rolesConfig.LEADER_ROLE_ID && !rolesConfig.LEADER_ROLE_ID.includes('YOUR_') && requestingMember.roles.cache.has(rolesConfig.LEADER_ROLE_ID);
+
+      const isOwner = (targetLeave.userId === userId);
+      const canCancel = isOwner || isMgr || isLdr;
+
+      if (!canCancel) {
+        return res.status(403).json({ success: false, error: '🔒 คุณสามารถยกเลิกได้เฉพาะใบลาของคุณเองเท่านั้น' });
+      }
+
+      const cancelled = leaveStore.cancelLeave(guild.id, leaveId);
+
+      // If the cancelled leave was for today, reset user's status in active attendance session
+      const todayStr = getThailandDateString();
+      if (targetLeave.date === todayStr) {
+        const session = attendanceStore.getSession(guild.id);
+        if (session && session.members && session.members.has(targetLeave.userId)) {
+          const mData = session.members.get(targetLeave.userId);
+          if (mData.status === 'LEAVE') {
+            mData.status = 'PENDING';
+          }
+        }
+      }
+
+      res.json({ success: true, message: 'ยกเลิกใบลาเรียบร้อยแล้ว!', record: cancelled });
+    } catch (err) {
+      console.error('[Cancel Leave Error]', err);
+      res.status(500).json({ success: false, error: err.message });
     }
   });
 
