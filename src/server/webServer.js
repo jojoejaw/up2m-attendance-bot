@@ -23,6 +23,16 @@ function startWebServer(client) {
   app.use(express.urlencoded({ limit: '25mb', extended: true }));
   app.use(express.static(path.join(__dirname, '../../public')));
 
+  // GET /api/health - Health check endpoint for uptime monitors and keep-alive
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'online',
+      bot: client.user ? client.user.tag : 'Connecting...',
+      uptimeSeconds: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // GET /api/members - Open view for everyone, but STRICTLY Manager role only can edit
   app.get('/api/members', async (req, res) => {
     const { guildId, userId } = req.query;
@@ -699,6 +709,19 @@ function startWebServer(client) {
 
   app.listen(PORT, () => {
     console.log(`🌐 [Web Server] Dashboard running on http://localhost:${PORT}`);
+
+    // Self-Ping Heartbeat to prevent Render free instance from going to sleep
+    const selfUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL;
+    if (selfUrl) {
+      const httpLib = selfUrl.startsWith('https') ? require('https') : require('http');
+      setInterval(() => {
+        httpLib.get(`${selfUrl}/api/health`, (res) => {
+          console.log(`💓 [Self-Ping Heartbeat] Keep-alive ping sent to ${selfUrl}/api/health (Status: ${res.statusCode})`);
+        }).on('error', (err) => {
+          console.warn(`⚠️ [Self-Ping Warning] ${err.message}`);
+        });
+      }, 8 * 60 * 1000); // Heartbeat every 8 minutes
+    }
   });
 }
 
