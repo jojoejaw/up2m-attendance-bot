@@ -489,7 +489,7 @@ module.exports = {
 
       // 🌐 Handle Per-User Personal Dashboard Link Button (Sends private link for the exact clicking user)
       if (interaction.isButton() && interaction.customId === 'btn_open_dashboard') {
-        const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+        const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000';
         const personalUrl = `${baseUrl}/?guildId=${interaction.guildId}&userId=${interaction.user.id}`;
 
         const btnPersonalLink = new ButtonBuilder()

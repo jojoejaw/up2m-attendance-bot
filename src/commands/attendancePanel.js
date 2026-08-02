@@ -18,7 +18,7 @@ function buildAttendanceUI(guild, session, requestingUser) {
   const membersList = Array.from(session.members.values());
   const totalCount = membersList.length;
 
-  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+  const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000';
   const dashboardUrl = `${baseUrl}/?guildId=${guild.id}&userId=${requestingUser.id}`;
   const logoPath = path.join(__dirname, '../../public/assets/u2m_logo.png');
   const logoAttachment = new AttachmentBuilder(logoPath, { name: 'u2m_logo.png' });
